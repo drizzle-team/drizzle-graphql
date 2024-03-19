@@ -54,13 +54,6 @@ jobs:
               run: |
                   npm run pack
 
-            - name: Run @arethetypeswrong/cli
-              shell: bash
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-              run: |
-                  pnpm attw package.tgz
-
             - name: Publish
               shell: bash
               env:

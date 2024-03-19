@@ -87,14 +87,6 @@ jobs:
               run: |
                   npm run pack
 
-            - name: Run @arethetypeswrong/cli
-              if: steps.checks.outputs.has_new_release == 'true'
-              shell: bash
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-              run: |
-                  pnpm attw package.tgz
-
             - name: Publish
               if: steps.checks.outputs.has_new_release == 'true'
               shell: bash
