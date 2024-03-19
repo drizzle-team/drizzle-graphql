@@ -1,33 +1,35 @@
 {
 	"name": "drizzle-graphql",
+	"type": "module",
 	"author": "Drizzle Team",
 	"version": "0.1.0",
 	"description": "Automatically generate GraphQL schema or customizable schema config fields from Drizzle ORM schema",
 	"scripts": {
-		"build": "rm -rf dist && tsup src/index.ts --format esm,cjs --dts && cp package.json dist/package.json",
+		"build": "scripts/build.ts",
+		"b": "pnpm build",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz"
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {
+		"@babel/parser": "^7.24.1",
 		"@graphql-tools/mock": "^9.0.2",
 		"@libsql/client": "^0.5.6",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
-		"@rollup/plugin-terser": "^0.4.4",
-		"@rollup/plugin-typescript": "^11.1.6",
 		"@types/dockerode": "^3.3.26",
 		"@types/uuid": "^9.0.8",
 		"cpy": "^11.0.1",
 		"dockerode": "^4.0.2",
 		"drizzle-kit": "^0.20.14",
 		"get-port": "^7.0.0",
+		"glob": "^10.3.10",
 		"graphql-yoga": "^5.1.1",
 		"mysql2": "^3.9.2",
 		"pg": "^8.11.3",
 		"postgres": "^3.4.3",
+		"recast": "^0.23.6",
 		"resolve-tspaths": "^0.8.18",
 		"rimraf": "^5.0.5",
-		"rollup": "^4.13.0",
 		"tsup": "^8.0.2",
 		"tsx": "^4.7.1",
 		"typescript": "^5.4.2",
@@ -36,9 +38,6 @@
 		"vitest": "^1.4.0",
 		"zx": "^7.2.3"
 	},
-	"main": "./index.js",
-	"module": "./index.mjs",
-	"types": "./index.d.ts",
 	"keywords": [
 		"drizzle",
 		"graphql",
@@ -53,6 +52,10 @@
 		"typescript",
 		"ts"
 	],
+	"main": "./index.cjs",
+	"module": "./index.js",
+	"types": "./index.d.ts",
+	"sideEffects": false,
 	"publishConfig": {
 		"provenance": true
 	},

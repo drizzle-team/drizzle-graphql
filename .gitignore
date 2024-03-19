@@ -8,3 +8,5 @@ vitest.config.ts
 drizzle.config.ts
 *.tgz
 temp.ts
+dist-dts
+dist.new
