@@ -46,7 +46,6 @@ jobs:
             - name: Check preconditions
               id: checks
               shell: bash
-              working-directory: ${{ matrix.package }}
               run: |
                   latest="$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)"
                   version="$(jq -r .version package.json)"
@@ -82,7 +81,6 @@ jobs:
 
             - name: Pack
               if: steps.checks.outputs.has_new_release == 'true'
-              working-directory: ${{ matrix.package }}
               shell: bash
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
@@ -91,7 +89,6 @@ jobs:
 
             - name: Run @arethetypeswrong/cli
               if: steps.checks.outputs.has_new_release == 'true'
-              working-directory: ${{ matrix.package }}
               shell: bash
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
@@ -100,7 +97,6 @@ jobs:
 
             - name: Publish
               if: steps.checks.outputs.has_new_release == 'true'
-              working-directory: ${{ matrix.package }}
               shell: bash
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
