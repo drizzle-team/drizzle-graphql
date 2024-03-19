@@ -12,6 +12,7 @@
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.15.2",
 		"@babel/parser": "^7.24.1",
 		"@graphql-tools/mock": "^9.0.2",
 		"@libsql/client": "^0.5.6",
