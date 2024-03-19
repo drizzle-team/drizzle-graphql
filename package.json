@@ -5,7 +5,7 @@
 	"version": "0.1.0",
 	"description": "Automatically generate GraphQL schema or customizable schema config fields from Drizzle ORM schema",
 	"scripts": {
-		"build": "scripts/build.ts",
+		"build": "pnpm tsx scripts/build.ts",
 		"b": "pnpm build",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz"
