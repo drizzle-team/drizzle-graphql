@@ -96,7 +96,7 @@ jobs:
                   version="${{ steps.checks.outputs.version }}"
 
                   echo "Publishing ${{ matrix.package }}@$version"
-                  npm run publish
+                  npm run publish --otp ${{ secrets.NPM_OTP }}
 
                   echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
 

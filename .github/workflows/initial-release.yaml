@@ -62,7 +62,7 @@ jobs:
                   version="0.1.0"
 
                   echo "Publishing ${{ matrix.package }}@$version"
-                  npm run publish --access public --otp 060269
+                  npm run publish --access public --otp ${{ secrets.NPM_OTP }}
 
                   echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
 
