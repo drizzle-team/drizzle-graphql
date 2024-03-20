@@ -1,4 +1,4 @@
-name: Release (initial)
+name: Release
 
 on: workflow_dispatch
 
@@ -65,6 +65,3 @@ jobs:
                   npm run publish --access public --otp ${{ secrets.NPM_OTP }}
 
                   echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
-
-                  # Post release message to Discord
-                  # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}"
