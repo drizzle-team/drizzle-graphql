@@ -1,4 +1,4 @@
-import type { Table, TableRelationalConfig, TablesRelationalConfig } from 'drizzle-orm'
+import type { Many, One, Relation, Relations, Table, TableRelationalConfig, TablesRelationalConfig } from 'drizzle-orm'
 import type { MySqlDatabase } from 'drizzle-orm/mysql-core'
 import type { RelationalQueryBuilder as MySqlQuery } from 'drizzle-orm/mysql-core/query-builders/query'
 import type { PgDatabase } from 'drizzle-orm/pg-core'
@@ -24,10 +24,10 @@ import type {
 } from '@/Util/Builders/vanilla'
 import type { Camelize, Pascalize } from '@/Util/caseOps'
 
-export type AnyDrizzleDB<TConfig extends TablesRelationalConfig = any> =
-	| PgDatabase<any, any, TConfig>
-	| BaseSQLiteDatabase<any, any, any, TConfig>
-	| MySqlDatabase<any, any, any, TConfig>
+export type AnyDrizzleDB =
+	| PgDatabase<any, any, any>
+	| BaseSQLiteDatabase<any, any, any, any>
+	| MySqlDatabase<any, any, any, any>
 
 export type AnyQueryBuiler<TConfig extends TablesRelationalConfig = any, TFields extends TableRelationalConfig = any> =
 	| PgQuery<TConfig, TFields>
@@ -35,7 +35,27 @@ export type AnyQueryBuiler<TConfig extends TablesRelationalConfig = any, TFields
 	| SQLiteQuery<any, any, TConfig, TFields>
 
 export type ExtractTables<TSchema extends Record<string, Table | unknown>> = {
-	[K in keyof TSchema]: TSchema[K] extends Table ? TSchema[K] : never
+	[K in keyof TSchema as TSchema[K] extends Table ? K : never]: TSchema[K] extends Table ? TSchema[K] : never
+}
+
+export type ExtractRelations<TSchema extends Record<string, Table | unknown>> = {
+	[K in keyof TSchema as TSchema[K] extends Relations ? K : never]: TSchema[K] extends Relations ? TSchema[K] : never
+}
+
+export type ExtractTableRelations<TTable extends Table, TSchemaRelations extends Record<string, Relations>> = {
+	[K in keyof TSchemaRelations as TSchemaRelations[K]['table']['_']['name'] extends TTable['_']['name']
+		? K
+		: never]: TSchemaRelations[K]['table']['_']['name'] extends TTable['_']['name']
+		? TSchemaRelations[K] extends Relations<any, infer RelationConfig>
+			? RelationConfig
+			: never
+		: never
+}
+
+export type ExtractTableByName<TTableSchema extends Record<string, Table>, TName extends string> = {
+	[K in keyof TTableSchema as TTableSchema[K]['_']['name'] extends TName
+		? K
+		: never]: TTableSchema[K]['_']['name'] extends TName ? TTableSchema[K] : never
 }
 
 export type MutationReturnlessResult = {
@@ -73,19 +93,80 @@ export type DeleteArgs<TTable extends Table> = {
 	where?: Filters<TTable>
 }
 
-export type SelectResolver<TTable extends Table> = (
+export type SelectResolver<
+	TTable extends Table,
+	TTables extends Record<string, Table>,
+	TRelations extends Record<string, Relation>
+> = (
 	source: any,
 	args: QueryArgs<TTable, false>,
 	context: any,
 	info: GraphQLResolveInfo
-) => Promise<Array<GetRemappedTableDataType<TTable>>>
+) => Promise<
+	keyof TRelations extends infer RelKey
+		? RelKey extends string
+			? Array<
+					GetRemappedTableDataType<TTable> & {
+						[K in RelKey]: TRelations[K] extends One<string>
+							? GetRemappedTableDataType<
+									ExtractTableByName<TTables, TRelations[K]['referencedTableName']> extends infer T
+										? T[keyof T]
+										: never
+							  > | null
+							: TRelations[K] extends Many<string>
+							? Array<
+									GetRemappedTableDataType<
+										ExtractTableByName<
+											TTables,
+											TRelations[K]['referencedTableName']
+										> extends infer T
+											? T[keyof T]
+											: never
+									>
+							  >
+							: never
+					}
+			  >
+			: Array<GetRemappedTableDataType<TTable>>
+		: Array<GetRemappedTableDataType<TTable>>
+>
 
-export type SelectSingleResolver<TTable extends Table> = (
+export type SelectSingleResolver<
+	TTable extends Table,
+	TTables extends Record<string, Table>,
+	TRelations extends Record<string, Relation>
+> = (
 	source: any,
 	args: QueryArgs<TTable, true>,
 	context: any,
 	info: GraphQLResolveInfo
-) => Promise<GetRemappedTableDataType<TTable> | undefined>
+) => Promise<
+	| (keyof TRelations extends infer RelKey
+			? RelKey extends string
+				? GetRemappedTableDataType<TTable> & {
+						[K in RelKey]: TRelations[K] extends One<string>
+							? GetRemappedTableDataType<
+									ExtractTableByName<TTables, TRelations[K]['referencedTableName']> extends infer T
+										? T[keyof T]
+										: never
+							  > | null
+							: TRelations[K] extends Many<string>
+							? Array<
+									GetRemappedTableDataType<
+										ExtractTableByName<
+											TTables,
+											TRelations[K]['referencedTableName']
+										> extends infer T
+											? T[keyof T]
+											: never
+									>
+							  >
+							: never
+				  }
+				: GetRemappedTableDataType<TTable>
+			: GetRemappedTableDataType<TTable>)
+	| null
+>
 
 export type InsertResolver<TTable extends Table, IsReturnless extends boolean> = (
 	source: any,
@@ -116,13 +197,14 @@ export type DeleteResolver<TTable extends Table, IsReturnless extends boolean> =
 ) => Promise<IsReturnless extends false ? GetRemappedTableDataType<TTable> | undefined : MutationReturnlessResult>
 
 export type QueriesCore<
-	TSchema extends Record<string, Table>,
+	TSchemaTables extends Record<string, Table>,
+	TSchemaRelations extends Record<string, Relations>,
 	TInputs extends Record<string, GraphQLInputObjectType>,
 	TOutputs extends Record<string, GraphQLObjectType>
 > = {
-	[TName in keyof TSchema as TName extends string ? `${Camelize<TName>}` : never]: TName extends string
+	[TName in keyof TSchemaTables as TName extends string ? `${Camelize<TName>}` : never]: TName extends string
 		? {
-				type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>
+				type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}SelectItem`]>>>
 				args: {
 					offset: {
 						type: GraphQLScalarType<number, number>
@@ -140,14 +222,21 @@ export type QueriesCore<
 							? TInputs[`${Pascalize<TName>}Filters`]
 							: never
 					}
+					relations?: {
+						type: GraphQLInputObjectType
+					}
 				}
-				resolve: SelectResolver<TSchema[TName]>
+				resolve: SelectResolver<
+					TSchemaTables[TName],
+					TSchemaTables,
+					ExtractTableRelations<TSchemaTables[TName], TSchemaRelations> extends infer R ? R[keyof R] : never
+				>
 		  }
 		: never
 } & {
-	[TName in keyof TSchema as TName extends string ? `${Camelize<TName>}Single` : never]: TName extends string
+	[TName in keyof TSchemaTables as TName extends string ? `${Camelize<TName>}Single` : never]: TName extends string
 		? {
-				type: TOutputs[`${Pascalize<TName>}Item`]
+				type: TOutputs[`${Pascalize<TName>}SelectItem`]
 				args: {
 					offset: {
 						type: GraphQLScalarType<number, number>
@@ -162,19 +251,28 @@ export type QueriesCore<
 							? TInputs[`${Pascalize<TName>}Filters`]
 							: never
 					}
+					relations?: {
+						type: GraphQLInputObjectType
+					}
 				}
-				resolve: SelectSingleResolver<TSchema[TName]>
+				resolve: SelectSingleResolver<
+					TSchemaTables[TName],
+					TSchemaTables,
+					ExtractTableRelations<TSchemaTables[TName], TSchemaRelations> extends infer R ? R[keyof R] : never
+				>
 		  }
 		: never
 }
 
 export type MutationsCore<
-	TSchema extends Record<string, Table>,
+	TSchemaTables extends Record<string, Table>,
 	TInputs extends Record<string, GraphQLInputObjectType>,
 	TOutputs extends Record<string, GraphQLObjectType>,
 	IsReturnless extends boolean
 > = {
-	[TName in keyof TSchema as TName extends string ? `insertInto${Pascalize<TName>}` : never]: TName extends string
+	[TName in keyof TSchemaTables as TName extends string
+		? `insertInto${Pascalize<TName>}`
+		: never]: TName extends string
 		? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType
@@ -186,11 +284,11 @@ export type MutationsCore<
 						type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>>>
 					}
 				}
-				resolve: InsertArrResolver<TSchema[TName], IsReturnless>
+				resolve: InsertArrResolver<TSchemaTables[TName], IsReturnless>
 		  }
 		: never
 } & {
-	[TName in keyof TSchema as TName extends string
+	[TName in keyof TSchemaTables as TName extends string
 		? `insertInto${Pascalize<TName>}Single`
 		: never]: TName extends string
 		? {
@@ -205,11 +303,11 @@ export type MutationsCore<
 						type: GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>
 					}
 				}
-				resolve: InsertResolver<TSchema[TName], IsReturnless>
+				resolve: InsertResolver<TSchemaTables[TName], IsReturnless>
 		  }
 		: never
 } & {
-	[TName in keyof TSchema as TName extends string ? `update${Pascalize<TName>}` : never]: TName extends string
+	[TName in keyof TSchemaTables as TName extends string ? `update${Pascalize<TName>}` : never]: TName extends string
 		? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType
@@ -226,11 +324,13 @@ export type MutationsCore<
 							: never
 					}
 				}
-				resolve: UpdateResolver<TSchema[TName], IsReturnless>
+				resolve: UpdateResolver<TSchemaTables[TName], IsReturnless>
 		  }
 		: never
 } & {
-	[TName in keyof TSchema as TName extends string ? `deleteFrom${Pascalize<TName>}` : never]: TName extends string
+	[TName in keyof TSchemaTables as TName extends string
+		? `deleteFrom${Pascalize<TName>}`
+		: never]: TName extends string
 		? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType
@@ -244,7 +344,7 @@ export type MutationsCore<
 							: never
 					}
 				}
-				resolve: DeleteResolver<TSchema[TName], IsReturnless>
+				resolve: DeleteResolver<TSchemaTables[TName], IsReturnless>
 		  }
 		: never
 }
@@ -260,26 +360,29 @@ export type GeneratedInputs<TSchema extends Record<string, Table>> = {
 }
 
 export type GeneratedOutputs<TSchema extends Record<string, Table>, IsReturnless extends Boolean> = {
-	[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}Item` : never]: GraphQLObjectType
+	[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}SelectItem` : never]: GraphQLObjectType
 } & (IsReturnless extends true
 	? {
 			MutationReturn: GraphQLObjectType
 	  }
-	: {})
+	: {
+			[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}Item` : never]: GraphQLObjectType
+	  })
 
 export type GeneratedEntities<
 	TDatabase extends AnyDrizzleDB,
 	TSchema extends Record<string, Table | unknown>,
-	TFilteredSchema extends ExtractTables<TSchema> = ExtractTables<TSchema>,
-	TInputs extends GeneratedInputs<TFilteredSchema> = GeneratedInputs<TFilteredSchema>,
+	TSchemaTables extends ExtractTables<TSchema> = ExtractTables<TSchema>,
+	TSchemaRelations extends ExtractRelations<TSchema> = ExtractRelations<TSchema>,
+	TInputs extends GeneratedInputs<TSchemaTables> = GeneratedInputs<TSchemaTables>,
 	TOutputs extends GeneratedOutputs<
-		TFilteredSchema,
+		TSchemaTables,
 		TDatabase extends MySqlDatabase<any, any, any, any> ? true : false
-	> = GeneratedOutputs<TFilteredSchema, TDatabase extends MySqlDatabase<any, any, any, any> ? true : false>
+	> = GeneratedOutputs<TSchemaTables, TDatabase extends MySqlDatabase<any, any, any, any> ? true : false>
 > = {
-	queries: QueriesCore<TFilteredSchema, TInputs, TOutputs>
+	queries: QueriesCore<TSchemaTables, TSchemaRelations, TInputs, TOutputs>
 	mutations: MutationsCore<
-		TFilteredSchema,
+		TSchemaTables,
 		TInputs,
 		TOutputs,
 		TDatabase extends MySqlDatabase<any, any, any, any> ? true : false

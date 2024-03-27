@@ -1,5 +1,5 @@
-import { Table, is } from 'drizzle-orm'
-import { MySqlColumn, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core'
+import { Many, Relation, Relations, Table, createTableRelationsHelpers, is } from 'drizzle-orm'
+import { MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core'
 import {
 	GraphQLBoolean,
 	GraphQLError,
@@ -7,13 +7,14 @@ import {
 	GraphQLInt,
 	GraphQLList,
 	GraphQLNonNull,
-	GraphQLObjectType
+	GraphQLObjectType,
+	Kind
 } from 'graphql'
 
 import {
 	extractFilters,
 	extractOrderBy,
-	extractSelectedColumnsSQLFormat,
+	extractSelectedColumnsFromNode,
 	generateTableTypes
 } from '@/Util/Builders/vanilla/common'
 import { camelize, pascalize } from '@/Util/caseOps'
@@ -24,67 +25,152 @@ import {
 	remapToGraphQLSingleOutput
 } from '@/Util/dataMappers'
 
-import type { GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql'
 import type { GeneratedEntities } from '@/types'
-import type { CreatedResolver, Filters, OrderByArgs } from './types'
+import type { RelationalQueryBuilder } from 'drizzle-orm/mysql-core/query-builders/query'
+import type { FieldNode, GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql'
+import type { CreatedResolver, Filters, ProcessedTableSelectArgs, TableSelectArgs } from './types'
 
 const generateSelectArray = (
 	db: MySqlDatabase<any, any, any>,
 	tableName: string,
 	table: MySqlTable,
+	relations: Record<string, Relation> | undefined,
 	orderArgs: GraphQLInputObjectType,
-	filterArgs: GraphQLInputObjectType
+	filterArgs: GraphQLInputObjectType,
+	relationsOrderArgs: Record<string, GraphQLInputObjectType>,
+	relationsFilterArgs: Record<string, GraphQLInputObjectType>
 ): CreatedResolver => {
 	const queryName = `${camelize(tableName)}`
+	const queryBase = db.query[tableName as keyof typeof db.query] as unknown as
+		| RelationalQueryBuilder<any, any, any>
+		| undefined
+	if (!queryBase)
+		throw new Error(
+			`Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`
+		)
 
-	const queryArgs = {
-		offset: {
-			type: GraphQLInt
-		},
-		limit: {
-			type: GraphQLInt
-		},
-		orderBy: {
-			type: orderArgs
-		},
-		where: {
-			type: filterArgs
-		}
-	} as const satisfies GraphQLFieldConfigArgumentMap
+	const relationEntries = relations ? Object.entries(relations) : undefined
+	const relationArgs = relationEntries
+		? new GraphQLInputObjectType({
+				name: `${queryName}RelationArgs`,
+				fields: Object.fromEntries(
+					relationEntries.map(([relName, relVal]) => [
+						relName,
+						{
+							type: new GraphQLInputObjectType({
+								name: `${queryName}${relName}RelationArgs`,
+								fields: is(relVal, Many)
+									? {
+											where: { type: relationsFilterArgs[relName]! },
+											orderBy: { type: relationsOrderArgs[relName]! },
+											offset: { type: GraphQLInt },
+											limit: { type: GraphQLInt }
+									  }
+									: {
+											where: { type: relationsFilterArgs[relName]! },
+											orderBy: { type: relationsOrderArgs[relName]! },
+											offset: { type: GraphQLInt }
+									  }
+							})
+						}
+					])
+				)
+		  })
+		: undefined
+
+	const queryArgs = relationArgs
+		? {
+				offset: {
+					type: GraphQLInt
+				},
+				limit: {
+					type: GraphQLInt
+				},
+				orderBy: {
+					type: orderArgs
+				},
+				where: {
+					type: filterArgs
+				},
+				relations: { type: relationArgs }
+		  }
+		: ({
+				offset: {
+					type: GraphQLInt
+				},
+				limit: {
+					type: GraphQLInt
+				},
+				orderBy: {
+					type: orderArgs
+				},
+				where: {
+					type: filterArgs
+				}
+		  } as GraphQLFieldConfigArgumentMap)
 
 	return {
 		name: queryName,
 		resolver: async (
 			source,
-			args: Partial<{ offset: number; limit: number; where: Filters<Table>; orderBy: OrderByArgs<Table> }>,
+			args: Partial<
+				TableSelectArgs & {
+					relations: Record<string, Partial<TableSelectArgs>>
+				}
+			>,
 			context,
 			info
 		) => {
 			const { offset, limit, orderBy, where } = args
+			const tableSelection = info.operation.selectionSet.selections.find(
+				(e) => e.kind === Kind.FIELD && e.name.value === queryName
+			) as FieldNode
 
-			const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, MySqlColumn>
+			const columns = extractSelectedColumnsFromNode(tableSelection, table)
+			let withFields: Record<string, Partial<ProcessedTableSelectArgs>> = {}
 
-			let query = db.select(columns).from(table)
-			if (where) {
-				const filters = extractFilters(table, tableName, where)
-				query = query.where(filters) as any
-			}
-			if (orderBy) {
-				const order = extractOrderBy(table, orderBy)
-				if (order.length) {
-					query = query.orderBy(...order) as any
+			if (relationEntries) {
+				for (const [relName, relValue] of relationEntries) {
+					if (!tableSelection.selectionSet) continue
+
+					const node = tableSelection.selectionSet.selections.find(
+						(e) => e.kind === Kind.FIELD && e.name.value === relName
+					) as FieldNode | undefined
+					if (!node) continue
+
+					const refTable = relValue.referencedTable
+					const relationArgs = args.relations?.[relName]
+
+					const columns = extractSelectedColumnsFromNode(node, refTable)
+					const orderBy = relationArgs?.orderBy ? extractOrderBy(refTable, relationArgs.orderBy!) : undefined
+					const where = relationArgs?.where
+						? extractFilters(refTable, relName, relationArgs?.where)
+						: undefined
+					const offset = relationArgs?.offset ?? undefined
+					const limit = relationArgs?.limit ?? undefined
+
+					withFields[relName] = {
+						columns,
+						orderBy,
+						where,
+						offset,
+						limit
+					}
 				}
 			}
-			if (typeof offset === 'number') {
-				query = query.offset(offset) as any
-			}
-			if (typeof limit === 'number') {
-				query = query.limit(limit) as any
-			}
+
+			let query = queryBase.findMany({
+				columns,
+				offset,
+				limit,
+				orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
+				where: where ? extractFilters(table, tableName, where) : undefined,
+				with: Object.keys(withFields).length ? withFields : undefined
+			})
 
 			const result = await query
 
-			return remapToGraphQLArrayOutput(result)
+			return remapToGraphQLArrayOutput(result, relations)
 		},
 		args: queryArgs
 	}
@@ -94,57 +180,140 @@ const generateSelectSingle = (
 	db: MySqlDatabase<any, any, any>,
 	tableName: string,
 	table: MySqlTable,
+	relations: Record<string, Relation> | undefined,
 	orderArgs: GraphQLInputObjectType,
-	filterArgs: GraphQLInputObjectType
+	filterArgs: GraphQLInputObjectType,
+	relationsOrderArgs: Record<string, GraphQLInputObjectType>,
+	relationsFilterArgs: Record<string, GraphQLInputObjectType>
 ): CreatedResolver => {
 	const queryName = `${camelize(tableName)}Single`
+	const queryBase = db.query[tableName as keyof typeof db.query] as unknown as
+		| RelationalQueryBuilder<any, any, any>
+		| undefined
+	if (!queryBase)
+		throw new Error(
+			`Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`
+		)
 
-	const queryArgs = {
-		offset: {
-			type: GraphQLInt
-		},
-		orderBy: {
-			type: orderArgs
-		},
-		where: {
-			type: filterArgs
-		}
-	} as const satisfies GraphQLFieldConfigArgumentMap
+	const relationEntries = relations ? Object.entries(relations) : undefined
+	const relationArgs = relationEntries
+		? new GraphQLInputObjectType({
+				name: `${queryName}RelationArgs`,
+				fields: Object.fromEntries(
+					relationEntries.map(([relName, relVal]) => [
+						relName,
+						{
+							type: new GraphQLInputObjectType({
+								name: `${queryName}${relName}RelationArgs`,
+								fields: is(relVal, Many)
+									? {
+											where: { type: relationsFilterArgs[relName]! },
+											orderBy: { type: relationsOrderArgs[relName]! },
+											offset: { type: GraphQLInt },
+											limit: { type: GraphQLInt }
+									  }
+									: {
+											where: { type: relationsFilterArgs[relName]! },
+											orderBy: { type: relationsOrderArgs[relName]! },
+											offset: { type: GraphQLInt }
+									  }
+							})
+						}
+					])
+				)
+		  })
+		: undefined
+
+	const queryArgs = relationArgs
+		? {
+				offset: {
+					type: GraphQLInt
+				},
+				orderBy: {
+					type: orderArgs
+				},
+				where: {
+					type: filterArgs
+				},
+				relations: { type: relationArgs }
+		  }
+		: ({
+				offset: {
+					type: GraphQLInt
+				},
+				limit: {
+					type: GraphQLInt
+				},
+				orderBy: {
+					type: orderArgs
+				},
+				where: {
+					type: filterArgs
+				}
+		  } as GraphQLFieldConfigArgumentMap)
 
 	return {
 		name: queryName,
 		resolver: async (
 			source,
-			args: Partial<{ offset: number; where: Filters<Table>; orderBy: OrderByArgs<Table> }>,
+			args: Partial<
+				TableSelectArgs & {
+					relations: Record<string, Partial<TableSelectArgs>>
+				}
+			>,
 			context,
 			info
 		) => {
-			const { offset, orderBy, where } = args
+			const { offset, limit, orderBy, where } = args
+			const tableSelection = info.operation.selectionSet.selections.find(
+				(e) => e.kind === Kind.FIELD && e.name.value === queryName
+			) as FieldNode
 
-			const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, MySqlColumn>
+			const columns = extractSelectedColumnsFromNode(tableSelection, table)
+			let withFields: Record<string, Partial<ProcessedTableSelectArgs>> = {}
 
-			let query = db.select(columns).from(table)
-			if (where) {
-				const filters = extractFilters(table, tableName, where)
-				query = query.where(filters) as any
-			}
-			if (orderBy) {
-				const order = extractOrderBy(table, orderBy)
-				if (order.length) {
-					query = query.orderBy(...order) as any
+			if (relationEntries) {
+				for (const [relName, relValue] of relationEntries) {
+					if (!tableSelection.selectionSet) continue
+
+					const node = tableSelection.selectionSet.selections.find(
+						(e) => e.kind === Kind.FIELD && e.name.value === relName
+					) as FieldNode | undefined
+					if (!node) continue
+
+					const refTable = relValue.referencedTable
+					const relationArgs = args.relations?.[relName]
+
+					const columns = extractSelectedColumnsFromNode(node, refTable)
+					const orderBy = relationArgs?.orderBy ? extractOrderBy(refTable, relationArgs.orderBy!) : undefined
+					const where = relationArgs?.where
+						? extractFilters(refTable, relName, relationArgs?.where)
+						: undefined
+					const offset = relationArgs?.offset ?? undefined
+					const limit = relationArgs?.limit ?? undefined
+
+					withFields[relName] = {
+						columns,
+						orderBy,
+						where,
+						offset,
+						limit
+					}
 				}
 			}
-			if (typeof offset === 'number') {
-				query = query.offset(offset) as any
-			}
 
-			query = query.limit(1) as any
+			let query = queryBase.findFirst({
+				columns,
+				offset,
+				orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
+				where: where ? extractFilters(table, tableName, where) : undefined,
+				with: Object.keys(withFields).length ? withFields : undefined
+			})
 
 			const result = await query
+			if (!result) return undefined
 
-			if (!result.length) return undefined
-
-			return remapToGraphQLSingleOutput(result[0]!)
+			return remapToGraphQLSingleOutput(result, relations)
 		},
 		args: queryArgs
 	}
@@ -301,20 +470,41 @@ export const generateSchemaData = <
 	db: TDrizzleInstance,
 	schema: TSchema
 ): GeneratedEntities<TDrizzleInstance, TSchema> => {
-	const rawTables = schema
+	const rawSchema = schema
 
-	const tables = Object.fromEntries(
-		Object.entries(rawTables).filter(([key, value]) => is(value, MySqlTable))
-	) as Record<string, Table>
+	const schemaEntries = Object.entries(rawSchema)
+
+	const tables = Object.fromEntries(schemaEntries.filter(([key, value]) => is(value, MySqlTable))) as Record<
+		string,
+		Table
+	>
 	if (!tables || !Object.keys(tables).length)
 		throw new Error(
 			`Unable to extract tables from drizzle instance.\nDid you forget to pass tables to graphql schema constructor?`
 		)
 
+	const relations = Object.fromEntries(
+		schemaEntries
+			.filter(([key, value]) => is(value, Relations))
+			.map<[string, Relations]>(([key, value]) => [
+				Object.entries(tables).find(
+					([tableName, tableValue]) => tableValue === (value as Relations).table
+				)![0] as string,
+				value as Relations
+			])
+			.map(([tableName, relValue]) => [
+				tableName,
+				relValue.config(createTableRelationsHelpers(tables[tableName]!))
+			])
+	)
+
 	const queries: ThunkObjMap<GraphQLFieldConfig<any, any>> = {}
 	const mutations: ThunkObjMap<GraphQLFieldConfig<any, any>> = {}
 	const gqlSchemaTypes = Object.fromEntries(
-		Object.entries(tables).map(([tableName, table]) => [tableName, generateTableTypes(tableName, table)])
+		Object.entries(tables).map(([tableName, table]) => [
+			tableName,
+			generateTableTypes(tableName, table, false, relations[tableName])
+		])
 	)
 
 	const mutationReturnType = new GraphQLObjectType({
@@ -332,22 +522,28 @@ export const generateSchemaData = <
 	}
 
 	for (const [tableName, tableTypes] of Object.entries(gqlSchemaTypes)) {
-		const { insertInput, updateInput, tableFilters, tableOrder } = tableTypes.inputs
+		const { insertInput, updateInput, tableFilters, tableOrder, relationFilters, relationOrder } = tableTypes.inputs
 		const { selectSingleOutput, selectArrOutput } = tableTypes.outputs
 
 		const selectArrGenerated = generateSelectArray(
 			db,
 			tableName,
 			schema[tableName] as MySqlTable,
+			relations[tableName],
 			tableOrder,
-			tableFilters
+			tableFilters,
+			relationOrder,
+			relationFilters
 		)
 		const selectSingleGenerated = generateSelectSingle(
 			db,
 			tableName,
 			schema[tableName] as MySqlTable,
+			relations[tableName],
 			tableOrder,
-			tableFilters
+			tableFilters,
+			relationOrder,
+			relationFilters
 		)
 		const insertArrGenerated = generateInsertArray(db, tableName, schema[tableName] as MySqlTable, insertInput)
 		const insertSingleGenerated = generateInsertSingle(db, tableName, schema[tableName] as MySqlTable, insertInput)

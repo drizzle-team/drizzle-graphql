@@ -1,6 +1,29 @@
-import type { Column, Table } from 'drizzle-orm'
+import type { Column, Relation, SQL, Table } from 'drizzle-orm'
 import type { PgArray } from 'drizzle-orm/pg-core'
-import type { GraphQLFieldConfigArgumentMap, GraphQLFieldResolver, GraphQLScalarType } from 'graphql'
+import type {
+	GraphQLFieldConfigArgumentMap,
+	GraphQLFieldResolver,
+	GraphQLInputObjectType,
+	GraphQLList,
+	GraphQLNonNull,
+	GraphQLObjectType,
+	GraphQLScalarType
+} from 'graphql'
+
+export type TableSelectArgs = {
+	offset: number
+	limit: number
+	where: Filters<Table>
+	orderBy: OrderByArgs<Table>
+}
+
+export type ProcessedTableSelectArgs = {
+	columns: Record<string, true>
+	offset: number
+	limit: number
+	where: SQL
+	orderBy: SQL[]
+}
 
 export type SelectedColumnsRaw = [string, true][]
 
@@ -22,12 +45,18 @@ export type ArgMapToArgsType<TArgMap extends GraphQLFieldConfigArgumentMap> = {
 
 export type ColTypeIsNull<TColumn extends Column, TColType> = TColumn['notNull'] extends true
 	? TColType
+	: TColType | null
+
+export type ColTypeIsNullOrUndefined<TColumn extends Column, TColType> = TColumn['notNull'] extends true
+	? TColType
 	: TColType | null | undefined
 
 export type ColTypeIsNullOrDefault<TColumn extends Column, TColType> = TColumn['notNull'] extends true
 	? TColumn['hasDefault'] extends true
 		? TColType | null | undefined
-		: TColType
+		: TColumn['defaultFn'] extends undefined
+		? TColType
+		: TColType | null | undefined
 	: TColType | null | undefined
 
 export type GetColumnGqlDataType<TColumn extends Column> = TColumn['dataType'] extends 'boolean'
@@ -93,8 +122,11 @@ export type GetColumnGqlUpdateDataType<TColumn extends Column> = TColumn['dataTy
 			| undefined
 	: never
 
-export type GetRemappedTableDataType<TTable extends Table> = {
-	[K in keyof TTable['_']['columns']]: GetColumnGqlDataType<TTable['_']['columns'][K]>
+export type GetRemappedTableDataType<
+	TTable extends Table,
+	TColumns extends TTable['_']['columns'] = TTable['_']['columns']
+> = {
+	[K in keyof TColumns]: GetColumnGqlDataType<TColumns[K]>
 }
 
 export type GetRemappedTableInsertDataType<TTable extends Table> = {
@@ -142,4 +174,39 @@ export type OrderByArgs<TTable extends Table> = {
 		direction: 'asc' | 'desc'
 		priority: number
 	}
+}
+
+export type GeneratedTableTypesInputs<TRelations extends Record<string, Relation> | undefined> = {
+	insertInput: GraphQLInputObjectType
+	updateInput: GraphQLInputObjectType
+	tableOrder: GraphQLInputObjectType
+	tableFilters: GraphQLInputObjectType
+	relationOrder: Record<
+		keyof TRelations extends infer Key ? (Key extends string ? Key : never) : never,
+		GraphQLInputObjectType
+	>
+	relationFilters: Record<
+		keyof TRelations extends infer Key ? (Key extends string ? Key : never) : never,
+		GraphQLInputObjectType
+	>
+}
+
+export type GeneratedTableTypesOutputs<WithReturning extends boolean> = WithReturning extends true
+	? {
+			selectSingleOutput: GraphQLObjectType
+			selectArrOutput: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+			singleTableItemOutput: GraphQLObjectType
+			arrTableItemOutput: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+	  }
+	: {
+			selectSingleOutput: GraphQLObjectType
+			selectArrOutput: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+	  }
+
+export type GeneratedTableTypes<
+	TRelations extends Record<string, Relation> | undefined,
+	WithReturning extends boolean
+> = {
+	inputs: GeneratedTableTypesInputs<TRelations>
+	outputs: GeneratedTableTypesOutputs<WithReturning>
 }

@@ -1,16 +1,15 @@
-import { Table, TablesRelationalConfig, is } from 'drizzle-orm'
+import { Relations, Table, is } from 'drizzle-orm'
 import { MySqlDatabase } from 'drizzle-orm/mysql-core'
 import { PgDatabase } from 'drizzle-orm/pg-core'
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
-import { GraphQLObjectType, GraphQLSchema } from 'graphql'
+import { GraphQLInputObjectType, GraphQLObjectType, GraphQLSchema } from 'graphql'
 
 import { generateMySQL, generatePG, generateSQLite } from '@/Util/Builders/vanilla'
 import type { AnyDrizzleDB, GeneratedData } from './types'
 
 export const buildVanillaSchema = <
-	TDbClient extends AnyDrizzleDB<TClientConfig>,
-	TClientConfig extends TablesRelationalConfig,
-	TSchema extends Record<string, Table | unknown>
+	TDbClient extends AnyDrizzleDB,
+	TSchema extends Record<string, Table | Relations | unknown>
 >(
 	db: TDbClient,
 	schema: TSchema
@@ -40,7 +39,7 @@ export const buildVanillaSchema = <
 	const outputSchema = new GraphQLSchema({
 		query,
 		mutation,
-		types: [...Object.values(inputs), ...Object.values(types)]
+		types: [...Object.values(inputs), ...Object.values(types)] as (GraphQLInputObjectType | GraphQLObjectType)[]
 	})
 
 	return { schema: outputSchema, entities: generatorOutput }

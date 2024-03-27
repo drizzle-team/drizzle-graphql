@@ -1,4 +1,5 @@
 import {
+	One,
 	SQL,
 	and,
 	asc,
@@ -9,6 +10,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	isNotNull,
 	isNull,
 	like,
@@ -33,33 +35,47 @@ import {
 	Kind
 } from 'graphql'
 
-import { drizzleColumnToGraphQLType } from '@/Util/TypeConverter/vanilla'
+import { ConvertedColumn, drizzleColumnToGraphQLType } from '@/Util/TypeConverter/vanilla'
 import { pascalize } from '@/Util/caseOps'
 import { remapFromGraphQLCore } from '@/Util/dataMappers'
 
-import type { Column, Table } from 'drizzle-orm'
+import type { Column, Relation, Table } from 'drizzle-orm'
 import type { FieldNode, GraphQLResolveInfo } from 'graphql'
 import type {
 	FilterColumnOperators,
 	FilterColumnOperatorsCore,
 	Filters,
 	FiltersCore,
+	GeneratedTableTypes,
+	GeneratedTableTypesOutputs,
 	OrderByArgs,
 	SelectedColumnsRaw,
 	SelectedSQLColumns
 } from './types'
 
-export const extractSelectedColumns = (info: GraphQLResolveInfo, queryName: string) => {
+export const extractSelectedColumns = (info: GraphQLResolveInfo, queryName: string): Record<string, true> => {
 	const tableSelection = info.operation.selectionSet.selections.find(
 		(e) => e.kind === Kind.FIELD && e.name.value === queryName
 	) as FieldNode | undefined
-
-	const selectedColumns: SelectedColumnsRaw = []
-
 	if (!tableSelection || !tableSelection.selectionSet) return {}
 
+	const selectedColumns: SelectedColumnsRaw = []
 	for (const columnSelection of tableSelection.selectionSet.selections) {
 		if (columnSelection.kind !== Kind.FIELD) continue
+
+		selectedColumns.push([columnSelection.name.value, true])
+	}
+
+	return Object.fromEntries(selectedColumns)
+}
+
+export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): Record<string, true> => {
+	if (!info.selectionSet) return {}
+
+	const tableColumns = getTableColumns(table)
+	const selectedColumns: SelectedColumnsRaw = []
+	for (const columnSelection of info.selectionSet.selections) {
+		if (columnSelection.kind !== Kind.FIELD || !tableColumns[columnSelection.name.value]) continue
 
 		selectedColumns.push([columnSelection.name.value, true])
 	}
@@ -114,7 +130,7 @@ export const innerOrder = new GraphQLInputObjectType({
 	} as const
 })
 
-const generateColumnFilterValues = (column: Column, tableName: string, columnName: string) => {
+const generateColumnFilterValues = (column: Column, tableName: string, columnName: string): GraphQLInputObjectType => {
 	const columnGraphQLType = drizzleColumnToGraphQLType(column, true)
 	const columnArr = new GraphQLList(new GraphQLNonNull(columnGraphQLType.type))
 
@@ -157,16 +173,88 @@ const generateColumnFilterValues = (column: Column, tableName: string, columnNam
 	return type
 }
 
-export const generateTableTypes = (tableName: string, table: Table) => {
+const filterMap = new WeakMap<Record<string, ConvertedColumn>>()
+
+const generateTableFilterValuesCached = (table: Table, tableName: string) => {
+	//@ts-expect-error - mapping to object's address
+	if (filterMap.has(table)) return filterMap.get(table)
+
 	const columns = getTableColumns(table)
 	const columnEntries = Object.entries(columns)
 
-	const selectFields = Object.fromEntries(
+	const remapped = Object.fromEntries(
+		columnEntries.map(([columnName, columnDescription]) => [
+			columnName,
+			{
+				type: generateColumnFilterValues(columnDescription, tableName, columnName)
+			}
+		])
+	)
+
+	//@ts-expect-error - mapping to object's address
+	filterMap.set(table, remapped)
+
+	return remapped
+}
+
+const fieldMap = new WeakMap<Record<string, ConvertedColumn>>()
+
+const generateTableSelectTypeFieldsCached = (table: Table): Record<string, ConvertedColumn> => {
+	//@ts-expect-error - mapping to object's address
+	if (fieldMap.has(table)) return fieldMap.get(table)
+
+	const columns = getTableColumns(table)
+	const columnEntries = Object.entries(columns)
+
+	const remapped = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
 			columnName,
 			drizzleColumnToGraphQLType(columnDescription)
 		])
 	)
+
+	//@ts-expect-error - mapping to object's address
+	fieldMap.set(table, remapped)
+
+	return remapped
+}
+
+export const generateTableTypes = <
+	TRelations extends Record<string, Relation> | undefined,
+	WithReturning extends boolean
+>(
+	tableName: string,
+	table: Table,
+	withReturning: WithReturning,
+	relations?: TRelations
+): GeneratedTableTypes<TRelations, WithReturning> => {
+	const relationEntries: [string, Relation][] = relations ? Object.entries(relations) : []
+
+	const relationFields = Object.fromEntries(
+		relationEntries.map(([relName, relValue]) => {
+			const relTableFields = Object.fromEntries(
+				Object.entries(getTableColumns(relValue.referencedTable)).map(([columnName, columnDescription]) => [
+					columnName,
+					drizzleColumnToGraphQLType(columnDescription)
+				])
+			)
+
+			const type = new GraphQLObjectType({
+				name: `${pascalize(tableName)}${pascalize(relName)}Relation`,
+				fields: relTableFields
+			})
+
+			return [
+				relName,
+				{ type: is(relValue, One) ? type : new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(type))) }
+			]
+		})
+	)
+
+	const tableFields = generateTableSelectTypeFieldsCached(table)
+
+	const columns = getTableColumns(table)
+	const columnEntries = Object.entries(columns)
 
 	const insertFields = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
@@ -188,11 +276,22 @@ export const generateTableTypes = (tableName: string, table: Table) => {
 	})
 
 	const selectSingleOutput = new GraphQLObjectType({
-		name: `${pascalize(tableName)}Item`,
-		fields: selectFields
+		name: `${pascalize(tableName)}SelectItem`,
+		fields: { ...tableFields, ...relationFields }
 	})
 
 	const selectArrOutput = new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(selectSingleOutput)))
+
+	const singleTableItemOutput = withReturning
+		? new GraphQLObjectType({
+				name: `${pascalize(tableName)}Item`,
+				fields: tableFields
+		  })
+		: undefined
+
+	const arrTableItemOutput = withReturning
+		? new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(singleTableItemOutput!)))
+		: undefined
 
 	const updateInput = new GraphQLInputObjectType({
 		name: `${pascalize(tableName)}UpdateInput`,
@@ -206,25 +305,18 @@ export const generateTableTypes = (tableName: string, table: Table) => {
 		)
 	})
 
-	const columnTypes = Object.fromEntries(
-		columnEntries.map(([columnName, columnDescription]) => [
-			columnName,
-			{
-				type: generateColumnFilterValues(columnDescription, tableName, columnName)
-			}
-		])
-	)
+	const filterColumns = generateTableFilterValuesCached(table, tableName)
 
 	const tableFilters: GraphQLInputObjectType = new GraphQLInputObjectType({
 		name: `${pascalize(tableName)}Filters`,
 		fields: {
-			...columnTypes,
+			...filterColumns,
 			OR: {
 				type: new GraphQLList(
 					new GraphQLNonNull(
 						new GraphQLInputObjectType({
 							name: `${pascalize(tableName)}FiltersOr`,
-							fields: columnTypes
+							fields: filterColumns
 						})
 					)
 				)
@@ -232,17 +324,65 @@ export const generateTableTypes = (tableName: string, table: Table) => {
 		}
 	})
 
+	const relationOrder: Record<string, GraphQLInputObjectType> = {}
+	const relationFilters: Record<string, GraphQLInputObjectType> = {}
+
+	for (const [relName, relValue] of relationEntries) {
+		relationOrder[relName] = new GraphQLInputObjectType({
+			name: `${pascalize(tableName)}${pascalize(relName)}RelationOrder`,
+			fields: Object.fromEntries(
+				Object.entries(relValue.referencedTable).map(([columnName, columnDescription]) => [
+					columnName,
+					{ type: innerOrder }
+				])
+			)
+		})
+
+		const relationFilterColumns = generateTableFilterValuesCached(relValue.referencedTable, relName)
+		relationFilters[relName] = new GraphQLInputObjectType({
+			name: `${pascalize(tableName)}${pascalize(relName)}RelationFilters`,
+			fields: {
+				...relationFilterColumns,
+				OR: {
+					type: new GraphQLList(
+						new GraphQLNonNull(
+							new GraphQLInputObjectType({
+								name: `${pascalize(tableName)}${pascalize(relName)}RelationFiltersOr`,
+								fields: relationFilterColumns
+							})
+						)
+					)
+				}
+			}
+		})
+	}
+
+	const inputs = {
+		insertInput,
+		updateInput,
+		tableOrder,
+		tableFilters,
+		relationOrder,
+		relationFilters
+	}
+
+	const outputs = (
+		withReturning
+			? {
+					selectSingleOutput,
+					selectArrOutput,
+					singleTableItemOutput: singleTableItemOutput!,
+					arrTableItemOutput: arrTableItemOutput!
+			  }
+			: {
+					selectSingleOutput,
+					selectArrOutput
+			  }
+	) as GeneratedTableTypesOutputs<WithReturning>
+
 	return {
-		inputs: {
-			insertInput,
-			updateInput,
-			tableOrder,
-			tableFilters
-		},
-		outputs: {
-			selectSingleOutput,
-			selectArrOutput
-		}
+		inputs,
+		outputs
 	}
 }
 

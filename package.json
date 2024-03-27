@@ -2,13 +2,16 @@
 	"name": "drizzle-graphql",
 	"type": "module",
 	"author": "Drizzle Team",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "Automatically generate GraphQL schema or customizable schema config fields from Drizzle ORM schema",
 	"scripts": {
 		"build": "pnpm tsx scripts/build.ts",
 		"b": "pnpm build",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "npm publish package.tgz"
+		"publish": "npm publish package.tgz",
+		"server-test:pg": "DB_TYPE=pg tsx watch Server/server.ts",
+		"server-test:mysql": "DB_TYPE=mysql tsx watch Server/server.ts",
+		"server-test:sqlite": "DB_TYPE=sqlite tsx watch Server/server.ts"
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {
@@ -65,7 +68,7 @@
 		"url": "git+https://github.com/Sukairo-02/drizzle-graphql.git"
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=0.30.1",
+		"drizzle-orm": ">=0.30.4",
 		"graphql": ">=16.8.1"
 	}
 }

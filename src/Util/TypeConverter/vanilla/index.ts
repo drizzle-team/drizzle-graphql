@@ -52,14 +52,21 @@ const columnToGraphQLCore = (column: Column): ConvertedColumn => {
 	}
 }
 
-export const drizzleColumnToGraphQLType = (column: Column, forceNullable = false, defaultIsNullable = false) => {
+export const drizzleColumnToGraphQLType = <TColumn extends Column>(
+	column: TColumn,
+	forceNullable = false,
+	defaultIsNullable = false
+): ConvertedColumn => {
 	const typeDesc = columnToGraphQLCore(column)
 	const noDesc = ['string', 'boolean', 'number']
 	if (noDesc.find((e) => e === column.dataType)) delete typeDesc.description
 
 	if (forceNullable) return typeDesc
-	if (column.notNull && !(defaultIsNullable && column.hasDefault))
-		return { type: new GraphQLNonNull(typeDesc.type), description: typeDesc.description }
+	if (column.notNull && !(defaultIsNullable && (column.hasDefault || column.defaultFn)))
+		return {
+			type: new GraphQLNonNull(typeDesc.type),
+			description: typeDesc.description
+		} as ConvertedColumn
 
 	return typeDesc
 }
