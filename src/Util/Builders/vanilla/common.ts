@@ -34,13 +34,15 @@ import {
 	GraphQLString,
 	Kind
 } from 'graphql'
+import { parseResolveInfo } from 'graphql-parse-resolve-info'
 
 import { ConvertedColumn, drizzleColumnToGraphQLType } from '@/Util/TypeConverter/vanilla'
 import { pascalize } from '@/Util/caseOps'
 import { remapFromGraphQLCore } from '@/Util/dataMappers'
 
 import type { Column, Relation, Table } from 'drizzle-orm'
-import type { FieldNode, GraphQLResolveInfo } from 'graphql'
+import type { FieldNode, GraphQLFieldConfig, GraphQLResolveInfo } from 'graphql'
+import type { ResolveTree } from 'graphql-parse-resolve-info'
 import type {
 	FilterColumnOperators,
 	FilterColumnOperatorsCore,
@@ -49,8 +51,10 @@ import type {
 	GeneratedTableTypes,
 	GeneratedTableTypesOutputs,
 	OrderByArgs,
+	ProcessedTableSelectArgs,
 	SelectedColumnsRaw,
-	SelectedSQLColumns
+	SelectedSQLColumns,
+	TableSelectArgs
 } from './types'
 
 export const extractSelectedColumns = (info: GraphQLResolveInfo, queryName: string): Record<string, true> => {
@@ -227,11 +231,11 @@ export const generateTableTypes = <
 	table: Table,
 	withReturning: WithReturning,
 	relations?: TRelations
-): GeneratedTableTypes<TRelations, WithReturning> => {
+): GeneratedTableTypes<WithReturning> => {
 	const relationEntries: [string, Relation][] = relations ? Object.entries(relations) : []
 
 	const relationFields = Object.fromEntries(
-		relationEntries.map(([relName, relValue]) => {
+		relationEntries.map<[string, GraphQLFieldConfig<any, any>]>(([relName, relValue]) => {
 			const relTableFields = Object.fromEntries(
 				Object.entries(getTableColumns(relValue.referencedTable)).map(([columnName, columnDescription]) => [
 					columnName,
@@ -244,9 +248,56 @@ export const generateTableTypes = <
 				fields: relTableFields
 			})
 
+			const relationFilterColumns = generateTableFilterValuesCached(relValue.referencedTable, relName)
+			const where = new GraphQLInputObjectType({
+				name: `${pascalize(tableName)}${pascalize(relName)}RelationFilters`,
+				fields: {
+					...relationFilterColumns,
+					OR: {
+						type: new GraphQLList(
+							new GraphQLNonNull(
+								new GraphQLInputObjectType({
+									name: `${pascalize(tableName)}${pascalize(relName)}RelationFiltersOr`,
+									fields: relationFilterColumns
+								})
+							)
+						)
+					}
+				}
+			})
+
+			if (is(relValue, One))
+				return [
+					relName,
+					{
+						type: type,
+						args: {
+							where: { type: where }
+						}
+					} as GraphQLFieldConfig<any, any>
+				]
+
+			const orderBy = new GraphQLInputObjectType({
+				name: `${pascalize(tableName)}${pascalize(relName)}RelationOrder`,
+				fields: Object.fromEntries(
+					Object.entries(relValue.referencedTable).map(([columnName, columnDescription]) => [
+						columnName,
+						{ type: innerOrder }
+					])
+				)
+			})
+
 			return [
 				relName,
-				{ type: is(relValue, One) ? type : new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(type))) }
+				{
+					type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(type))),
+					args: {
+						where: { type: where },
+						orderBy: { type: orderBy },
+						offset: { type: GraphQLInt },
+						limit: { type: GraphQLInt }
+					}
+				} as GraphQLFieldConfig<any, any>
 			]
 		})
 	)
@@ -324,46 +375,11 @@ export const generateTableTypes = <
 		}
 	})
 
-	const relationOrder: Record<string, GraphQLInputObjectType> = {}
-	const relationFilters: Record<string, GraphQLInputObjectType> = {}
-
-	for (const [relName, relValue] of relationEntries) {
-		relationOrder[relName] = new GraphQLInputObjectType({
-			name: `${pascalize(tableName)}${pascalize(relName)}RelationOrder`,
-			fields: Object.fromEntries(
-				Object.entries(relValue.referencedTable).map(([columnName, columnDescription]) => [
-					columnName,
-					{ type: innerOrder }
-				])
-			)
-		})
-
-		const relationFilterColumns = generateTableFilterValuesCached(relValue.referencedTable, relName)
-		relationFilters[relName] = new GraphQLInputObjectType({
-			name: `${pascalize(tableName)}${pascalize(relName)}RelationFilters`,
-			fields: {
-				...relationFilterColumns,
-				OR: {
-					type: new GraphQLList(
-						new GraphQLNonNull(
-							new GraphQLInputObjectType({
-								name: `${pascalize(tableName)}${pascalize(relName)}RelationFiltersOr`,
-								fields: relationFilterColumns
-							})
-						)
-					)
-				}
-			}
-		})
-	}
-
 	const inputs = {
 		insertInput,
 		updateInput,
 		tableOrder,
-		tableFilters,
-		relationOrder,
-		relationFilters
+		tableFilters
 	}
 
 	const outputs = (
@@ -536,4 +552,57 @@ export const extractFilters = <TTable extends Table>(
 	}
 
 	return variants.length ? (variants.length > 1 ? and(...variants) : variants[0]) : undefined
+}
+
+export const extractRelationsParams = (
+	relations: Record<string, Relation>,
+	tableSelection: FieldNode,
+	typeName: string,
+	info: GraphQLResolveInfo
+): Record<string, Partial<ProcessedTableSelectArgs>> | undefined => {
+	const fields: Record<string, Partial<ProcessedTableSelectArgs>> = {}
+	const parsedInfo = parseResolveInfo(info, {
+		deep: true
+	}) as ResolveTree
+
+	const baseField = Object.entries(parsedInfo.fieldsByTypeName).find(([key, value]) => key === typeName)?.[1] ?? {}
+
+	for (const [relName, relValue] of Object.entries(relations)) {
+		if (!tableSelection.selectionSet) continue
+
+		const node = tableSelection.selectionSet.selections.find(
+			(e) => e.kind === Kind.FIELD && e.name.value === relName
+		) as FieldNode | undefined
+		if (!node) continue
+
+		const refTable = relValue.referencedTable
+		const columns = extractSelectedColumnsFromNode(node, refTable)
+
+		const relationArgs: Partial<TableSelectArgs> | undefined = (
+			Object.values(baseField).find((e) => (e as any).name === relName) as any
+		)?.args
+
+		if (!relationArgs) {
+			fields[relName] = {
+				columns
+			}
+
+			continue
+		}
+
+		const orderBy = relationArgs?.orderBy ? extractOrderBy(refTable, relationArgs.orderBy!) : undefined
+		const where = relationArgs?.where ? extractFilters(refTable, relName, relationArgs?.where) : undefined
+		const offset = relationArgs?.offset ?? undefined
+		const limit = relationArgs?.limit ?? undefined
+
+		fields[relName] = {
+			columns,
+			orderBy,
+			where,
+			offset,
+			limit
+		}
+	}
+
+	return Object.keys(fields).length ? fields : undefined
 }

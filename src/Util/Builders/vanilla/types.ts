@@ -176,19 +176,11 @@ export type OrderByArgs<TTable extends Table> = {
 	}
 }
 
-export type GeneratedTableTypesInputs<TRelations extends Record<string, Relation> | undefined> = {
+export type GeneratedTableTypesInputs = {
 	insertInput: GraphQLInputObjectType
 	updateInput: GraphQLInputObjectType
 	tableOrder: GraphQLInputObjectType
 	tableFilters: GraphQLInputObjectType
-	relationOrder: Record<
-		keyof TRelations extends infer Key ? (Key extends string ? Key : never) : never,
-		GraphQLInputObjectType
-	>
-	relationFilters: Record<
-		keyof TRelations extends infer Key ? (Key extends string ? Key : never) : never,
-		GraphQLInputObjectType
-	>
 }
 
 export type GeneratedTableTypesOutputs<WithReturning extends boolean> = WithReturning extends true
@@ -203,10 +195,7 @@ export type GeneratedTableTypesOutputs<WithReturning extends boolean> = WithRetu
 			selectArrOutput: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
 	  }
 
-export type GeneratedTableTypes<
-	TRelations extends Record<string, Relation> | undefined,
-	WithReturning extends boolean
-> = {
-	inputs: GeneratedTableTypesInputs<TRelations>
+export type GeneratedTableTypes<WithReturning extends boolean> = {
+	inputs: GeneratedTableTypesInputs
 	outputs: GeneratedTableTypesOutputs<WithReturning>
 }
