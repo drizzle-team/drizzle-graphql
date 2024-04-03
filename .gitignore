@@ -11,3 +11,5 @@ temp.ts
 dist-dts
 dist.new
 Server
+pnpm-lock.yaml
+drizzle.config.test.ts

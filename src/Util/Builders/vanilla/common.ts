@@ -563,9 +563,11 @@ export const extractRelationsParams = (
 	const fields: Record<string, Partial<ProcessedTableSelectArgs>> = {}
 	const parsedInfo = parseResolveInfo(info, {
 		deep: true
-	}) as ResolveTree
+	}) as ResolveTree | undefined
 
-	const baseField = Object.entries(parsedInfo.fieldsByTypeName).find(([key, value]) => key === typeName)?.[1] ?? {}
+	const baseField = parsedInfo
+		? Object.entries(parsedInfo.fieldsByTypeName).find(([key, value]) => key === typeName)?.[1] ?? {}
+		: {}
 
 	for (const [relName, relValue] of Object.entries(relations)) {
 		if (!tableSelection.selectionSet) continue

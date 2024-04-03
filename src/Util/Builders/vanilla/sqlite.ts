@@ -404,6 +404,7 @@ export const generateSchemaData = <
 		}
 		;[insertInput, updateInput, tableFilters, tableOrder].forEach((e) => (inputs[e.name] = e))
 		outputs[selectSingleOutput.name] = selectSingleOutput
+		outputs[singleTableItemOutput.name] = singleTableItemOutput
 	}
 
 	return { queries, mutations, inputs, types: outputs } as any
