@@ -499,9 +499,7 @@ export const extractFiltersColumn = <TColumn extends Column>(
 					throw new GraphQLError(
 						`WHERE ${columnName}: Unable to use operator ${operatorName} with an empty array!`
 					)
-				const arrayValue = (operatorValue as any[]).map((val) =>
-					remapFromGraphQLCore(operatorValue, column, columnName)
-				)
+				const arrayValue = (operatorValue as any[]).map((val) => remapFromGraphQLCore(val, column, columnName))
 
 				variants.push(operator(column, arrayValue))
 				break
@@ -592,10 +590,10 @@ export const extractRelationsParams = (
 			continue
 		}
 
-		const orderBy = relationArgs?.orderBy ? extractOrderBy(refTable, relationArgs.orderBy!) : undefined
-		const where = relationArgs?.where ? extractFilters(refTable, relName, relationArgs?.where) : undefined
-		const offset = relationArgs?.offset ?? undefined
-		const limit = relationArgs?.limit ?? undefined
+		const orderBy = relationArgs.orderBy ? extractOrderBy(refTable, relationArgs.orderBy!) : undefined
+		const where = relationArgs.where ? extractFilters(refTable, relName, relationArgs?.where) : undefined
+		const offset = relationArgs.offset ?? undefined
+		const limit = relationArgs.limit ?? undefined
 
 		fields[relName] = {
 			columns,
