@@ -43,16 +43,16 @@ export type ArgMapToArgsType<TArgMap extends GraphQLFieldConfigArgumentMap> = {
 	[Key in keyof TArgMap]?: TArgMap[Key] extends { type: GraphQLScalarType<infer R, any> } ? R : never
 }
 
-export type ColTypeIsNull<TColumn extends Column, TColType> = TColumn['notNull'] extends true
+export type ColTypeIsNull<TColumn extends Column, TColType> = TColumn['_']['notNull'] extends true
 	? TColType
 	: TColType | null
 
-export type ColTypeIsNullOrUndefined<TColumn extends Column, TColType> = TColumn['notNull'] extends true
+export type ColTypeIsNullOrUndefined<TColumn extends Column, TColType> = TColumn['_']['notNull'] extends true
 	? TColType
 	: TColType | null | undefined
 
-export type ColTypeIsNullOrDefault<TColumn extends Column, TColType> = TColumn['notNull'] extends true
-	? TColumn['hasDefault'] extends true
+export type ColTypeIsNullOrUndefinedWithDefault<TColumn extends Column, TColType> = TColumn['_']['notNull'] extends true
+	? TColumn['_']['hasDefault'] extends true
 		? TColType | null | undefined
 		: TColumn['defaultFn'] extends undefined
 		? TColType
@@ -81,15 +81,15 @@ export type GetColumnGqlDataType<TColumn extends Column> = TColumn['dataType'] e
 	: never
 
 export type GetColumnGqlInsertDataType<TColumn extends Column> = TColumn['dataType'] extends 'boolean'
-	? ColTypeIsNullOrDefault<TColumn, boolean>
+	? ColTypeIsNullOrUndefinedWithDefault<TColumn, boolean>
 	: TColumn['dataType'] extends 'json' | 'date' | 'string' | 'bigint'
-	? ColTypeIsNullOrDefault<TColumn, string>
+	? ColTypeIsNullOrUndefinedWithDefault<TColumn, string>
 	: TColumn['dataType'] extends 'number'
-	? ColTypeIsNullOrDefault<TColumn, number>
+	? ColTypeIsNullOrUndefinedWithDefault<TColumn, number>
 	: TColumn['dataType'] extends 'buffer'
-	? ColTypeIsNullOrDefault<TColumn, number[]>
+	? ColTypeIsNullOrUndefinedWithDefault<TColumn, number[]>
 	: TColumn extends PgArray<any, any>
-	? ColTypeIsNullOrDefault<
+	? ColTypeIsNullOrUndefinedWithDefault<
 			TColumn,
 			Array<
 				GetColumnGqlDataType<TColumn['baseColumn']> extends infer InnerColType

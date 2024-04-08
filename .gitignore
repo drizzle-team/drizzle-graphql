@@ -2,8 +2,6 @@ node_modules
 package-lock.json
 dist
 *.sqlite
-**/Test 
-**/Tests
 vitest.config.ts
 drizzle.config.ts
 *.tgz
@@ -12,4 +10,6 @@ dist-dts
 dist.new
 Server
 pnpm-lock.yaml
-drizzle.config.test.ts
+runMysql.ts
+Tests/.temp
+Tests/Migrations

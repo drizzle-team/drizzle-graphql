@@ -13,10 +13,10 @@ import {
 import {
 	extractFilters,
 	extractOrderBy,
+	extractRelationsParams,
 	extractSelectedColumnsFromNode,
 	extractSelectedColumnsSQLFormat,
-	generateTableTypes,
-	extractRelationsParams
+	generateTableTypes
 } from '@/Util/Builders/vanilla/common'
 import { camelize, pascalize } from '@/Util/caseOps'
 import {
@@ -66,25 +66,32 @@ const generateSelectArray = (
 	return {
 		name: queryName,
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
-			const { offset, limit, orderBy, where } = args
-			const tableSelection = info.operation.selectionSet.selections.find(
-				(e) => e.kind === Kind.FIELD && e.name.value === queryName
-			) as FieldNode
+			try {
+				const { offset, limit, orderBy, where } = args
+				const tableSelection = info.operation.selectionSet.selections.find(
+					(e) => e.kind === Kind.FIELD && e.name.value === queryName
+				) as FieldNode
 
-			const query = queryBase.findMany({
-				columns: extractSelectedColumnsFromNode(tableSelection, table),
-				offset,
-				limit,
-				orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
-				where: where ? extractFilters(table, tableName, where) : undefined,
-				with: relations
-					? extractRelationsParams(relations, tableSelection, `${pascalize(tableName)}SelectItem`, info)
-					: undefined
-			})
+				const query = queryBase.findMany({
+					columns: extractSelectedColumnsFromNode(tableSelection, table),
+					offset,
+					limit,
+					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
+					where: where ? extractFilters(table, tableName, where) : undefined,
+					with: relations
+						? extractRelationsParams(relations, tableSelection, `${pascalize(tableName)}SelectItem`, info)
+						: undefined
+				})
 
-			const result = await query
+				const result = await query
 
-			return remapToGraphQLArrayOutput(result, relations)
+				return remapToGraphQLArrayOutput(result, relations)
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any>e).message === 'string')
+					throw new GraphQLError((<any>e).message)
+
+				throw e
+			}
 		},
 		args: queryArgs
 	}
@@ -111,9 +118,6 @@ const generateSelectSingle = (
 		offset: {
 			type: GraphQLInt
 		},
-		limit: {
-			type: GraphQLInt
-		},
 		orderBy: {
 			type: orderArgs
 		},
@@ -125,25 +129,32 @@ const generateSelectSingle = (
 	return {
 		name: queryName,
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
-			const { offset, orderBy, where } = args
-			const tableSelection = info.operation.selectionSet.selections.find(
-				(e) => e.kind === Kind.FIELD && e.name.value === queryName
-			) as FieldNode
+			try {
+				const { offset, orderBy, where } = args
+				const tableSelection = info.operation.selectionSet.selections.find(
+					(e) => e.kind === Kind.FIELD && e.name.value === queryName
+				) as FieldNode
 
-			const query = queryBase.findFirst({
-				columns: extractSelectedColumnsFromNode(tableSelection, table),
-				offset,
-				orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
-				where: where ? extractFilters(table, tableName, where) : undefined,
-				with: relations
-					? extractRelationsParams(relations, tableSelection, `${pascalize(tableName)}SelectItem`, info)
-					: undefined
-			})
+				const query = queryBase.findFirst({
+					columns: extractSelectedColumnsFromNode(tableSelection, table),
+					offset,
+					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
+					where: where ? extractFilters(table, tableName, where) : undefined,
+					with: relations
+						? extractRelationsParams(relations, tableSelection, `${pascalize(tableName)}SelectItem`, info)
+						: undefined
+				})
 
-			const result = await query
-			if (!result) return undefined
+				const result = await query
+				if (!result) return undefined
 
-			return remapToGraphQLSingleOutput(result, relations)
+				return remapToGraphQLSingleOutput(result, relations)
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any>e).message === 'string')
+					throw new GraphQLError((<any>e).message)
+
+				throw e
+			}
 		},
 		args: queryArgs
 	}
@@ -166,18 +177,25 @@ const generateInsertArray = (
 	return {
 		name: queryName,
 		resolver: async (source, args: { values: Record<string, any>[] }, context, info) => {
-			const input = remapFromGraphQLArrayInput(args.values, table)
-			if (!input.length) throw new GraphQLError('No values were provided!')
+			try {
+				const input = remapFromGraphQLArrayInput(args.values, table)
+				if (!input.length) throw new GraphQLError('No values were provided!')
 
-			const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
+				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
 
-			const result = await db
-				.insert(table)
-				.values(input)
-				.returning(columns as Record<string, SQLiteColumn>)
-				.onConflictDoNothing()
+				const result = await db
+					.insert(table)
+					.values(input)
+					.returning(columns as Record<string, SQLiteColumn>)
+					.onConflictDoNothing()
 
-			return remapToGraphQLArrayOutput(result)
+				return remapToGraphQLArrayOutput(result)
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any>e).message === 'string')
+					throw new GraphQLError((<any>e).message)
+
+				throw e
+			}
 		},
 		args: queryArgs
 	}
@@ -200,15 +218,22 @@ const generateInsertSingle = (
 	return {
 		name: queryName,
 		resolver: async (source, args: { values: Record<string, any> }, context, info) => {
-			const input = remapFromGraphQLSingleInput(args.values, table)
+			try {
+				const input = remapFromGraphQLSingleInput(args.values, table)
 
-			const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
+				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
 
-			const result = await db.insert(table).values(input).returning(columns).onConflictDoNothing()
+				const result = await db.insert(table).values(input).returning(columns).onConflictDoNothing()
 
-			if (!result[0]) return undefined
+				if (!result[0]) return undefined
 
-			return remapToGraphQLSingleOutput(result[0])
+				return remapToGraphQLSingleOutput(result[0])
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any>e).message === 'string')
+					throw new GraphQLError((<any>e).message)
+
+				throw e
+			}
 		},
 		args: queryArgs
 	}
@@ -235,23 +260,30 @@ const generateUpdate = (
 	return {
 		name: queryName,
 		resolver: async (source, args: { where?: Filters<Table>; set: Record<string, any> }, context, info) => {
-			const { where, set } = args
+			try {
+				const { where, set } = args
 
-			const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
-			const input = remapFromGraphQLSingleInput(set, table)
-			if (!Object.keys(input).length) throw new GraphQLError('Unable to update with no values specified!')
+				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
+				const input = remapFromGraphQLSingleInput(set, table)
+				if (!Object.keys(input).length) throw new GraphQLError('Unable to update with no values specified!')
 
-			let query = db.update(table).set(input)
-			if (where) {
-				const filters = extractFilters(table, tableName, where)
-				query = query.where(filters) as any
+				let query = db.update(table).set(input)
+				if (where) {
+					const filters = extractFilters(table, tableName, where)
+					query = query.where(filters) as any
+				}
+
+				query = query.returning(columns) as any
+
+				const result = await query
+
+				return remapToGraphQLArrayOutput(result)
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any>e).message === 'string')
+					throw new GraphQLError((<any>e).message)
+
+				throw e
 			}
-
-			query = query.returning(columns) as any
-
-			const result = await query
-
-			return remapToGraphQLArrayOutput(result)
 		},
 		args: queryArgs
 	}
@@ -274,21 +306,28 @@ const generateDelete = (
 	return {
 		name: queryName,
 		resolver: async (source, args: { where?: Filters<Table> }, context, info) => {
-			const { where } = args
+			try {
+				const { where } = args
 
-			const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
+				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>
 
-			let query = db.delete(table)
-			if (where) {
-				const filters = extractFilters(table, tableName, where)
-				query = query.where(filters) as any
+				let query = db.delete(table)
+				if (where) {
+					const filters = extractFilters(table, tableName, where)
+					query = query.where(filters) as any
+				}
+
+				query = query.returning(columns) as any
+
+				const result = await query
+
+				return remapToGraphQLArrayOutput(result)
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any>e).message === 'string')
+					throw new GraphQLError((<any>e).message)
+
+				throw e
 			}
-
-			query = query.returning(columns) as any
-
-			const result = await query
-
-			return remapToGraphQLArrayOutput(result)
 		},
 		args: queryArgs
 	}

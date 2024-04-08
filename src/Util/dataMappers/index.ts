@@ -60,7 +60,7 @@ export const remapFromGraphQLCore = (value: any, column: Column, columnName: str
 
 		case 'json': {
 			try {
-				return JSON.stringify(value)
+				return JSON.parse(value)
 			} catch (e) {
 				throw new GraphQLError(
 					`Invalid JSON in field '${columnName}':\n${e instanceof Error ? e.message : 'Unknown error'}`

@@ -99,7 +99,7 @@ export type SelectResolver<
 	TRelations extends Record<string, Relation>
 > = (
 	source: any,
-	args: QueryArgs<TTable, false>,
+	args: Partial<QueryArgs<TTable, false>>,
 	context: any,
 	info: GraphQLResolveInfo
 ) => Promise<
@@ -137,7 +137,7 @@ export type SelectSingleResolver<
 	TRelations extends Record<string, Relation>
 > = (
 	source: any,
-	args: QueryArgs<TTable, true>,
+	args: Partial<QueryArgs<TTable, true>>,
 	context: any,
 	info: GraphQLResolveInfo
 ) => Promise<
@@ -170,14 +170,14 @@ export type SelectSingleResolver<
 
 export type InsertResolver<TTable extends Table, IsReturnless extends boolean> = (
 	source: any,
-	args: InsertArgs<TTable, false>,
+	args: Partial<InsertArgs<TTable, false>>,
 	context: any,
 	info: GraphQLResolveInfo
 ) => Promise<IsReturnless extends false ? Array<GetRemappedTableDataType<TTable>> : MutationReturnlessResult>
 
 export type InsertArrResolver<TTable extends Table, IsReturnless extends boolean> = (
 	source: any,
-	args: InsertArgs<TTable, true>,
+	args: Partial<InsertArgs<TTable, true>>,
 	context: any,
 	info: GraphQLResolveInfo
 ) => Promise<IsReturnless extends false ? GetRemappedTableDataType<TTable> | undefined : MutationReturnlessResult>
@@ -222,9 +222,6 @@ export type QueriesCore<
 							? TInputs[`${Pascalize<TName>}Filters`]
 							: never
 					}
-					relations?: {
-						type: GraphQLInputObjectType
-					}
 				}
 				resolve: SelectResolver<
 					TSchemaTables[TName],
@@ -250,9 +247,6 @@ export type QueriesCore<
 						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
 							? TInputs[`${Pascalize<TName>}Filters`]
 							: never
-					}
-					relations?: {
-						type: GraphQLInputObjectType
 					}
 				}
 				resolve: SelectSingleResolver<
