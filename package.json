@@ -28,7 +28,7 @@
 		"cpy": "^11.0.1",
 		"dockerode": "^4.0.2",
 		"drizzle-kit": "^0.20.16",
-		"drizzle-orm": "^0.30.8-3d06cf2",
+		"drizzle-orm": "0.30.8-3d06cf2",
 		"get-port": "^7.0.0",
 		"glob": "^10.3.10",
 		"graphql": "^16.3.0",
