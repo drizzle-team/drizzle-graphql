@@ -12,12 +12,12 @@ Automatically create GraphQL schema or customizable schema config fields from Dr
     ```Typescript
     import { createServer } from 'node:http'
     import { createYoga } from 'graphql-yoga'
-    import { buildVanillaSchema } from 'drizzle-graphql'
+    import { buildSchema } from 'drizzle-graphql'
 
     // db - your drizzle instance, schema - your drizzle tables
-    import { db, schema as dbSchema } from './database'
+    import { db } from './database'
 
-    const { schema } = buildVanillaSchema(db, dbSchema)
+    const { schema } = buildSchema(db)
 
     const yoga = createYoga({ schema })
 
@@ -32,12 +32,12 @@ Automatically create GraphQL schema or customizable schema config fields from Dr
     import { createServer } from 'node:http'
     import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLSchema } from 'graphql'
     import { createYoga } from 'graphql-yoga'
-    import { buildVanillaSchema } from 'drizzle-graphql'
+    import { buildSchema } from 'drizzle-graphql'
 
     // Schema contains 'Users' and 'Customers' tables
-    import { db, schema as dbSchema } from './database'
+    import { db } from './database'
 
-    const { entities } = buildVanillaSchema(db, dbSchema)
+    const { entities } = buildSchema(db)
 
     // You can customize which parts of queries or mutations you want
     const schema = new GraphQLSchema({

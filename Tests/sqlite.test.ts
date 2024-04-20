@@ -1,5 +1,5 @@
 import {
-	buildVanillaSchema,
+	buildSchema,
 	type DeleteResolver,
 	type ExtractTables,
 	type GeneratedEntities,
@@ -26,14 +26,14 @@ import { createServer, type Server } from 'node:http'
 import path from 'path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import z from 'zod'
-import * as schema from './Schema/sqlite'
-import { GraphQLClient } from './Util/query'
+import * as schema from './schema/sqlite'
+import { GraphQLClient } from './util/query'
 
 interface Context {
-	db: BaseSQLiteDatabase<any, any, any, any>
+	db: BaseSQLiteDatabase<'async', any, typeof schema>
 	client: Client
 	schema: GraphQLSchema
-	entities: GeneratedEntities<BaseSQLiteDatabase<any, any, any, any>, typeof schema>
+	entities: GeneratedEntities<BaseSQLiteDatabase<'async', any, typeof schema>>
 	server: Server
 	gql: GraphQLClient
 }
@@ -70,7 +70,7 @@ beforeAll(async () => {
 		logger: process.env['LOG_SQL'] ? true : false
 	})
 
-	const { schema: gqlSchema, entities } = buildVanillaSchema(ctx.db, schema)
+	const { schema: gqlSchema, entities } = buildSchema(ctx.db)
 	const yoga = createYoga({
 		schema: gqlSchema
 	})

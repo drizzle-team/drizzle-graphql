@@ -21,13 +21,13 @@ import type {
 	GetRemappedTableInsertDataType,
 	GetRemappedTableUpdateDataType,
 	OrderByArgs
-} from '@/Util/Builders/vanilla'
-import type { Camelize, Pascalize } from '@/Util/caseOps'
+} from '@/util/builders'
+import type { Camelize, Pascalize } from '@/util/case-ops'
 
-export type AnyDrizzleDB =
-	| PgDatabase<any, any, any>
-	| BaseSQLiteDatabase<any, any, any, any>
-	| MySqlDatabase<any, any, any, any>
+export type AnyDrizzleDB<TSchema extends Record<string, any>> =
+	| PgDatabase<any, TSchema>
+	| BaseSQLiteDatabase<any, any, TSchema>
+	| MySqlDatabase<any, any, TSchema>
 
 export type AnyQueryBuiler<TConfig extends TablesRelationalConfig = any, TFields extends TableRelationalConfig = any> =
 	| PgQuery<TConfig, TFields>
@@ -364,8 +364,8 @@ export type GeneratedOutputs<TSchema extends Record<string, Table>, IsReturnless
 	  })
 
 export type GeneratedEntities<
-	TDatabase extends AnyDrizzleDB,
-	TSchema extends Record<string, Table | unknown>,
+	TDatabase extends AnyDrizzleDB<TSchema>,
+	TSchema extends Record<string, unknown> = TDatabase extends AnyDrizzleDB<infer ISchema> ? ISchema : never,
 	TSchemaTables extends ExtractTables<TSchema> = ExtractTables<TSchema>,
 	TSchemaRelations extends ExtractRelations<TSchema> = ExtractRelations<TSchema>,
 	TInputs extends GeneratedInputs<TSchemaTables> = GeneratedInputs<TSchemaTables>,
@@ -385,7 +385,10 @@ export type GeneratedEntities<
 	types: TOutputs
 }
 
-export type GeneratedData<TDatabase extends AnyDrizzleDB, TSchema extends Record<string, Table | unknown>> = {
+export type GeneratedData<
+	TDatabase extends AnyDrizzleDB<any>,
+	TSchema extends Record<string, unknown> = TDatabase extends AnyDrizzleDB<infer ISchema> ? ISchema : never
+> = {
 	schema: GraphQLSchema
-	entities: GeneratedEntities<TDatabase, TSchema>
+	entities: GeneratedEntities<TDatabase>
 }

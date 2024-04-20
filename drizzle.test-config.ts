@@ -6,22 +6,22 @@ switch (dbType) {
 	case 'pg':
 		config = {
 			driver: 'pg',
-			schema: './Tests/Schema/pg.ts',
-			out: './Tests/Migrations/pg/'
+			schema: './tests/schema/pg.ts',
+			out: './tests/migrations/pg/'
 		} satisfies Config
 		break
 	case 'mysql':
 		config = {
 			driver: 'mysql2',
-			schema: './Tests/Schema/mysql.ts',
-			out: './Tests/Migrations/mysql/'
+			schema: './tests/schema/mysql.ts',
+			out: './tests/migrations/mysql/'
 		} satisfies Config
 		break
 	case 'sqlite':
 		config = {
 			driver: 'libsql',
-			schema: './Tests/Schema/sqlite.ts',
-			out: './Tests/Migrations/sqlite/'
+			schema: './tests/schema/sqlite.ts',
+			out: './tests/migrations/sqlite/'
 		} satisfies Config
 		break
 }

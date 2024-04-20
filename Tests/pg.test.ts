@@ -1,5 +1,5 @@
 import {
-	buildVanillaSchema,
+	buildSchema,
 	type DeleteResolver,
 	type ExtractTables,
 	type GeneratedEntities,
@@ -26,16 +26,16 @@ import { createServer, type Server } from 'node:http'
 import postgres, { type Sql } from 'postgres'
 import { v4 as uuid } from 'uuid'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
-import * as schema from './Schema/pg'
-import { GraphQLClient } from './Util/query'
+import * as schema from './schema/pg'
+import { GraphQLClient } from './util/query'
 
 interface Context {
 	docker: Docker
 	pgContainer: Docker.Container
-	db: PostgresJsDatabase<any>
+	db: PostgresJsDatabase<typeof schema>
 	client: Sql
 	schema: GraphQLSchema
-	entities: GeneratedEntities<PostgresJsDatabase, typeof schema>
+	entities: GeneratedEntities<PostgresJsDatabase<typeof schema>>
 	server: Server
 	gql: GraphQLClient
 }
@@ -104,7 +104,7 @@ beforeAll(async () => {
 		logger: process.env['LOG_SQL'] ? true : false
 	})
 
-	const { schema: gqlSchema, entities } = buildVanillaSchema(ctx.db, schema)
+	const { schema: gqlSchema, entities } = buildSchema(ctx.db)
 	const yoga = createYoga({
 		schema: gqlSchema
 	})

@@ -1,5 +1,5 @@
 import {
-	buildVanillaSchema,
+	buildSchema,
 	type DeleteResolver,
 	type ExtractTables,
 	type GeneratedEntities,
@@ -11,7 +11,6 @@ import {
 } from '@/index'
 import Docker from 'dockerode'
 import { eq, inArray, sql, type Relations } from 'drizzle-orm'
-import { MySqlDatabase } from 'drizzle-orm/mysql-core'
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2'
 import getPort from 'get-port'
 import {
@@ -28,16 +27,16 @@ import * as mysql from 'mysql2/promise'
 import { v4 as uuid } from 'uuid'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import z from 'zod'
-import * as schema from './Schema/mysql'
-import { GraphQLClient } from './Util/query'
+import * as schema from './schema/mysql'
+import { GraphQLClient } from './util/query'
 
 interface Context {
 	docker: Docker
 	mysqlContainer: Docker.Container
-	db: MySql2Database<any>
+	db: MySql2Database<typeof schema>
 	client: mysql.Connection
 	schema: GraphQLSchema
-	entities: GeneratedEntities<MySqlDatabase<any, any, any, any>, typeof schema>
+	entities: GeneratedEntities<MySql2Database<typeof schema>>
 	server: Server
 	gql: GraphQLClient
 }
@@ -103,7 +102,7 @@ beforeAll(async (t) => {
 		mode: 'default'
 	})
 
-	const { schema: gqlSchema, entities } = buildVanillaSchema(ctx.db, schema)
+	const { schema: gqlSchema, entities } = buildSchema(ctx.db)
 	const yoga = createYoga({
 		schema: gqlSchema
 	})

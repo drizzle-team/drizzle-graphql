@@ -1,15 +1,12 @@
 node_modules
-package-lock.json
 dist
 *.sqlite
-vitest.config.ts
 drizzle.config.ts
 *.tgz
 temp.ts
 dist-dts
 dist.new
-Server
-pnpm-lock.yaml
+server
 runMysql.ts
 Tests/.temp
 Tests/Migrations

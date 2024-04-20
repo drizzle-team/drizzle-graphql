@@ -1,21 +1,16 @@
-import { Relations, Table, is } from 'drizzle-orm'
+import { is } from 'drizzle-orm'
 import { MySqlDatabase } from 'drizzle-orm/mysql-core'
 import { PgDatabase } from 'drizzle-orm/pg-core'
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 import { GraphQLInputObjectType, GraphQLObjectType, GraphQLSchema } from 'graphql'
 
-import { generateMySQL, generatePG, generateSQLite } from '@/Util/Builders/vanilla'
+import { generateMySQL, generatePG, generateSQLite } from '@/util/builders'
 import type { AnyDrizzleDB, GeneratedData } from './types'
 
-export const buildVanillaSchema = <
-	TDbClient extends AnyDrizzleDB,
-	TSchema extends Record<string, Table | Relations | unknown>
->(
-	db: TDbClient,
-	schema: TSchema
-): GeneratedData<TDbClient, TSchema> => {
-	let generatorOutput
+export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient): GeneratedData<TDbClient> => {
+	const schema = db._.fullSchema
 
+	let generatorOutput
 	if (is(db, MySqlDatabase)) {
 		generatorOutput = generateMySQL(db, schema)
 	} else if (is(db, PgDatabase)) {
