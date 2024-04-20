@@ -71,7 +71,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Sukairo-02/drizzle-graphql.git"
+		"url": "git+https://github.com/drizzle-team/drizzle-graphql.git"
 	},
 	"dependencies": {
 		"graphql-parse-resolve-info": "^4.13.0"
