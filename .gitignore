@@ -10,3 +10,4 @@ server
 runMysql.ts
 Tests/.temp
 Tests/Migrations
+.DS_Store

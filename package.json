@@ -2,7 +2,7 @@
 	"name": "drizzle-graphql",
 	"type": "module",
 	"author": "Drizzle Team",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Automatically generate GraphQL schema or customizable schema config fields from Drizzle ORM schema",
 	"scripts": {
 		"build": "pnpm tsx scripts/build.ts",
@@ -16,6 +16,20 @@
 		"server-generate-migrations": "DB_TYPE=pg drizzle-kit generate:pg && DB_TYPE=mysql drizzle-kit generate:mysql && DB_TYPE=sqlite drizzle-kit generate:sqlite",
 		"test-generate-migrations": "DB_TYPE=pg drizzle-kit generate:pg --config=./drizzle.test-config.ts && DB_TYPE=mysql drizzle-kit generate:mysql --config=./drizzle.test-config.ts && DB_TYPE=sqlite drizzle-kit generate:sqlite --config=./drizzle.test-config.ts",
 		"lint": "dprint check --list-different"
+	},
+	"exports": {
+		".": {
+			"import": {
+				"types": "./index.d.ts",
+				"default": "./index.js"
+			},
+			"require": {
+				"types": "./index.d.cjs",
+				"default": "./index.cjs"
+			},
+			"types": "./index.d.ts",
+			"default": "./index.js"
+		}
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {

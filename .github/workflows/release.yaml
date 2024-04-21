@@ -57,12 +57,16 @@ jobs:
               run: |
                   npm run pack
 
+            - name: Run @arethetypeswrong/cli
+              run: |
+                  pn attw package.tgz
+
             - name: Publish
               shell: bash
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
               run: |
-                  version="0.1.0"
+                  version="$(jq -r .version package.json)"
 
                   echo "Publishing ${{ matrix.package }}@$version"
                   npm run publish --access public
