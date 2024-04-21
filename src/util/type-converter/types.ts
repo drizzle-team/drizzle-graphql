@@ -1,4 +1,4 @@
-import type { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLScalarType } from 'graphql'
+import type { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLScalarType } from 'graphql';
 
 export type ConvertedColumn = {
 	type:
@@ -7,11 +7,11 @@ export type ConvertedColumn = {
 		| GraphQLList<GraphQLScalarType>
 		| GraphQLList<GraphQLNonNull<GraphQLScalarType>>
 		| GraphQLNonNull<GraphQLList<GraphQLScalarType>>
-		| GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLScalarType>>>
-	description?: string
-}
+		| GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLScalarType>>>;
+	description?: string;
+};
 
 export type ConvertedInputColumn = {
-	type: GraphQLInputObjectType
-	description?: string
-}
+	type: GraphQLInputObjectType;
+	description?: string;
+};

@@ -7,233 +7,179 @@ import {
 	type InsertResolver,
 	type SelectResolver,
 	type SelectSingleResolver,
-	type UpdateResolver
-} from '@/index'
-import Docker from 'dockerode'
-import { sql, type Relations } from 'drizzle-orm'
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import getPort from 'get-port'
+	type UpdateResolver,
+} from '@/index';
+import { type Client, createClient } from '@libsql/client';
+import { Relations, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { type BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import {
 	GraphQLInputObjectType,
 	GraphQLList,
 	GraphQLNonNull,
 	GraphQLObjectType,
 	GraphQLScalarType,
-	GraphQLSchema
-} from 'graphql'
-import { createYoga } from 'graphql-yoga'
-import { createServer, type Server } from 'node:http'
-import postgres, { type Sql } from 'postgres'
-import { v4 as uuid } from 'uuid'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
-import * as schema from './schema/pg'
-import { GraphQLClient } from './util/query'
+	GraphQLSchema,
+} from 'graphql';
+import { createYoga } from 'graphql-yoga';
+import { createServer, type Server } from 'node:http';
+import path from 'path';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
+import z from 'zod';
+import * as schema from './schema/sqlite';
+import { GraphQLClient } from './util/query';
 
 interface Context {
-	docker: Docker
-	pgContainer: Docker.Container
-	db: PostgresJsDatabase<typeof schema>
-	client: Sql
-	schema: GraphQLSchema
-	entities: GeneratedEntities<PostgresJsDatabase<typeof schema>>
-	server: Server
-	gql: GraphQLClient
+	db: BaseSQLiteDatabase<'async', any, typeof schema>;
+	client: Client;
+	schema: GraphQLSchema;
+	entities: GeneratedEntities<BaseSQLiteDatabase<'async', any, typeof schema>>;
+	server: Server;
+	gql: GraphQLClient;
 }
 
-const ctx: Context = {} as any
-
-async function createDockerDB(ctx: Context): Promise<string> {
-	const docker = (ctx.docker = new Docker())
-	const port = await getPort({ port: 5432 })
-	const image = 'postgres:14'
-
-	const pullStream = await docker.pull(image)
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	)
-
-	const pgContainer = (ctx.pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-graphql-pg-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }]
-			}
-		}
-	}))
-
-	await pgContainer.start()
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`
-}
+const ctx: Context = {} as any;
 
 beforeAll(async () => {
-	const connectionString = await createDockerDB(ctx)
-
-	const sleep = 250
-	let timeLeft = 5000
-	let connected = false
-	let lastError: unknown | undefined
+	const sleep = 250;
+	let timeLeft = 5000;
+	let connected = false;
+	let lastError: unknown | undefined;
 
 	do {
 		try {
-			ctx.client = postgres(connectionString, {
-				max: 1,
-				onnotice: () => {
-					// disable notices
-				}
-			})
-			await ctx.client`select 1`
-			connected = true
-			break
+			ctx.client = createClient({
+				url: `file://${path.join(__dirname, '/.temp/db.sqlite')}`,
+			});
+			connected = true;
+			break;
 		} catch (e) {
-			lastError = e
-			await new Promise((resolve) => setTimeout(resolve, sleep))
-			timeLeft -= sleep
+			lastError = e;
+			await new Promise((resolve) => setTimeout(resolve, sleep));
+			timeLeft -= sleep;
 		}
-	} while (timeLeft > 0)
+	} while (timeLeft > 0);
+
 	if (!connected) {
-		console.error('Cannot connect to Postgres')
-		throw lastError
+		console.error('Cannot connect to libsql');
+		throw lastError;
 	}
 
 	ctx.db = drizzle(ctx.client, {
 		schema,
-		logger: process.env['LOG_SQL'] ? true : false
-	})
+		logger: process.env['LOG_SQL'] ? true : false,
+	});
 
-	const { schema: gqlSchema, entities } = buildSchema(ctx.db)
+	const { schema: gqlSchema, entities } = buildSchema(ctx.db);
 	const yoga = createYoga({
-		schema: gqlSchema
-	})
-	const server = createServer(yoga)
+		schema: gqlSchema,
+	});
+	const server = createServer(yoga);
 
-	const port = 4002
-	server.listen(port)
-	const gql = new GraphQLClient(`http://localhost:${port}/graphql`)
+	const port = 4003;
+	server.listen(port);
+	const gql = new GraphQLClient(`http://localhost:${port}/graphql`);
 
-	ctx.schema = gqlSchema
-	ctx.entities = entities
-	ctx.server = server
-	ctx.gql = gql
-})
+	ctx.schema = gqlSchema;
+	ctx.entities = entities;
+	ctx.server = server;
+	ctx.gql = gql;
+});
 
-afterAll(async () => {
-	await ctx.client?.end().catch(console.error)
-	await ctx.pgContainer?.stop().catch(console.error)
-})
+afterAll(async (t) => {
+	ctx.client.close();
+});
 
-beforeEach(async () => {
-	await ctx.db.execute(
-		sql`
-		DO $$ BEGIN
-		CREATE TYPE "role" AS ENUM('admin', 'user');
-	   	EXCEPTION
-		WHEN duplicate_object THEN null;
-	   	END $$;
-		`
-	)
+beforeEach(async (t) => {
+	await ctx.db.run(sql`CREATE TABLE IF NOT EXISTS \`customers\` (
+		\`id\` integer PRIMARY KEY NOT NULL,
+		\`address\` text NOT NULL,
+		\`is_confirmed\` integer,
+		\`registration_date\` integer NOT NULL,
+		\`user_id\` integer NOT NULL,
+		FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE no action
+	);`);
 
-	await ctx.db.execute(
-		sql`CREATE TABLE IF NOT EXISTS "customers" (
-			"id" serial PRIMARY KEY NOT NULL,
-			"address" text NOT NULL,
-			"is_confirmed" boolean,
-			"registration_date" timestamp DEFAULT now() NOT NULL,
-			"user_id" integer NOT NULL
-		);`
-	)
+	await ctx.db.run(sql`CREATE TABLE IF NOT EXISTS \`posts\` (
+		\`id\` integer PRIMARY KEY NOT NULL,
+		\`content\` text,
+		\`author_id\` integer
+	);`);
 
-	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "posts" (
-		"id" serial PRIMARY KEY NOT NULL,
-		"content" text,
-		"author_id" integer
-	);`)
-
-	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "users" (
-		"a" integer[],
-		"id" serial PRIMARY KEY NOT NULL,
-		"name" text NOT NULL,
-		"email" text,
-		"birthday_string" date,
-		"birthday_date" date,
-		"created_at" timestamp DEFAULT now() NOT NULL,
-		"role" "role",
-		"role1" text,
-		"role2" text DEFAULT 'user',
-		"profession" varchar(20),
-		"initials" char(2),
-		"is_confirmed" boolean
-	);`)
-
-	await ctx.db.execute(sql`DO $$ BEGIN
-			ALTER TABLE "customers" ADD CONSTRAINT "customers_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;
-		EXCEPTION
-			WHEN duplicate_object THEN null;
-		END $$;
-   `)
+	await ctx.db.run(sql`CREATE TABLE IF NOT EXISTS \`users\` (
+		\`id\` integer PRIMARY KEY NOT NULL,
+		\`name\` text NOT NULL,
+		\`email\` text,
+		\`text_json\` text,
+		\`blob_bigint\` blob,
+		\`numeric\` numeric,
+		\`created_at\` integer,
+		\`created_at_ms\` integer,
+		\`real\` real,
+		\`text\` text(255),
+		\`role\` text DEFAULT 'user',
+		\`is_confirmed\` integer
+	);`);
 
 	await ctx.db.insert(schema.Users).values([
 		{
-			a: [1, 5, 10, 25, 40],
 			id: 1,
 			name: 'FirstUser',
 			email: 'userOne@notmail.com',
-			birthdayString: '2024-04-02T06:44:41.785Z',
-			birthdayDate: new Date('2024-04-02T06:44:41.785Z'),
+			textJson: { field: 'value' },
+			blobBigInt: BigInt(10),
+			numeric: '250.2',
 			createdAt: new Date('2024-04-02T06:44:41.785Z'),
+			createdAtMs: new Date('2024-04-02T06:44:41.785Z'),
+			real: 13.5,
+			text: 'sometext',
 			role: 'admin',
-			roleText: null,
-			profession: 'FirstUserProf',
-			initials: 'FU',
-			isConfirmed: true
+			isConfirmed: true,
 		},
 		{
 			id: 2,
 			name: 'SecondUser',
-			createdAt: new Date('2024-04-02T06:44:41.785Z')
+			createdAt: new Date('2024-04-02T06:44:41.785Z'),
 		},
 		{
 			id: 5,
 			name: 'FifthUser',
-			createdAt: new Date('2024-04-02T06:44:41.785Z')
-		}
-	])
+			createdAt: new Date('2024-04-02T06:44:41.785Z'),
+		},
+	]);
 
 	await ctx.db.insert(schema.Posts).values([
 		{
 			id: 1,
 			authorId: 1,
-			content: '1MESSAGE'
+			content: '1MESSAGE',
 		},
 		{
 			id: 2,
 			authorId: 1,
-			content: '2MESSAGE'
+			content: '2MESSAGE',
 		},
 		{
 			id: 3,
 			authorId: 1,
-			content: '3MESSAGE'
+			content: '3MESSAGE',
 		},
 		{
 			id: 4,
 			authorId: 5,
-			content: '1MESSAGE'
+			content: '1MESSAGE',
 		},
 		{
 			id: 5,
 			authorId: 5,
-			content: '2MESSAGE'
+			content: '2MESSAGE',
 		},
 		{
 			id: 6,
 			authorId: 1,
-			content: '4MESSAGE'
-		}
-	])
+			content: '4MESSAGE',
+		},
+	]);
 
 	await ctx.db.insert(schema.Customers).values([
 		{
@@ -241,40 +187,42 @@ beforeEach(async () => {
 			address: 'AdOne',
 			isConfirmed: false,
 			registrationDate: new Date('2024-03-27T03:54:45.235Z'),
-			userId: 1
+			userId: 1,
 		},
 		{
 			id: 2,
 			address: 'AdTwo',
 			isConfirmed: false,
 			registrationDate: new Date('2024-03-27T03:55:42.358Z'),
-			userId: 2
-		}
-	])
-})
+			userId: 2,
+		},
+	]);
+});
 
-afterEach(async () => {
-	await ctx.db.execute(sql`drop schema public cascade`)
-	await ctx.db.execute(sql`create schema public`)
-})
+afterEach(async (t) => {
+	await ctx.db.run(sql`PRAGMA foreign_keys = OFF;`);
+	await ctx.db.run(sql`DROP TABLE IF EXISTS \`customers\`;`);
+	await ctx.db.run(sql`DROP TABLE IF EXISTS \`posts\`;`);
+	await ctx.db.run(sql`DROP TABLE IF EXISTS \`users\`;`);
+	await ctx.db.run(sql`PRAGMA foreign_keys = ON;`);
+});
 
 describe.sequential('Query tests', async () => {
 	it(`Select single`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
 				usersSingle {
-					a
 					id
 					name
 					email
-					birthdayString
-					birthdayDate
+					textJson
+					blobBigInt
+					numeric
 					createdAt
+					createdAtMs
+					real
+					text
 					role
-					roleText
-					roleText2
-					profession
-					initials
 					isConfirmed
 				}
 
@@ -284,50 +232,48 @@ describe.sequential('Query tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				usersSingle: {
-					a: [1, 5, 10, 25, 40],
 					id: 1,
 					name: 'FirstUser',
 					email: 'userOne@notmail.com',
-					birthdayString: '2024-04-02',
-					birthdayDate: '2024-04-02T00:00:00.000Z',
-					createdAt: '2024-04-02T06:44:41.785Z',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
 					role: 'admin',
-					roleText: null,
-					roleText2: 'user',
-					profession: 'FirstUserProf',
-					initials: 'FU',
-					isConfirmed: true
+					isConfirmed: true,
 				},
 				postsSingle: {
 					id: 1,
 					authorId: 1,
-					content: '1MESSAGE'
-				}
-			}
-		})
-	})
+					content: '1MESSAGE',
+				},
+			},
+		});
+	});
 
 	it(`Select array`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
 				users {
-					a
 					id
 					name
 					email
-					birthdayString
-					birthdayDate
+					textJson
+					blobBigInt
+					numeric
 					createdAt
+					createdAtMs
+					real
+					text
 					role
-					roleText
-					roleText2
-					profession
-					initials
 					isConfirmed
 				}
 
@@ -337,109 +283,105 @@ describe.sequential('Query tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				users: [
 					{
-						a: [1, 5, 10, 25, 40],
 						id: 1,
 						name: 'FirstUser',
 						email: 'userOne@notmail.com',
-						birthdayString: '2024-04-02',
-						birthdayDate: '2024-04-02T00:00:00.000Z',
-						createdAt: '2024-04-02T06:44:41.785Z',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
 						role: 'admin',
-						roleText: null,
-						roleText2: 'user',
-						profession: 'FirstUserProf',
-						initials: 'FU',
-						isConfirmed: true
+						isConfirmed: true,
 					},
 					{
-						a: null,
 						id: 2,
 						name: 'SecondUser',
 						email: null,
-						birthdayString: null,
-						birthdayDate: null,
-						createdAt: '2024-04-02T06:44:41.785Z',
-						role: null,
-						roleText: null,
-						roleText2: 'user',
-						profession: null,
-						initials: null,
-						isConfirmed: null
+						blobBigInt: null,
+						textJson: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						numeric: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
 					},
 					{
-						a: null,
 						id: 5,
 						name: 'FifthUser',
 						email: null,
-						birthdayString: null,
-						birthdayDate: null,
-						createdAt: '2024-04-02T06:44:41.785Z',
-						role: null,
-						roleText: null,
-						roleText2: 'user',
-						profession: null,
-						initials: null,
-						isConfirmed: null
-					}
+						createdAt: '2024-04-02T06:44:41.000Z',
+						role: 'user',
+						blobBigInt: null,
+						textJson: null,
+						createdAtMs: null,
+						numeric: null,
+						real: null,
+						text: null,
+						isConfirmed: null,
+					},
 				],
 				posts: [
 					{
 						id: 1,
 						authorId: 1,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 2,
 						authorId: 1,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 3,
 						authorId: 1,
-						content: '3MESSAGE'
+						content: '3MESSAGE',
 					},
 					{
 						id: 4,
 						authorId: 5,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 5,
 						authorId: 5,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 6,
 						authorId: 1,
-						content: '4MESSAGE'
-					}
-				]
-			}
-		})
-	})
+						content: '4MESSAGE',
+					},
+				],
+			},
+		});
+	});
 
 	it(`Select single with relations`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
 				usersSingle {
-					a
 					id
 					name
 					email
-					birthdayString
-					birthdayDate
+					textJson
+					blobBigInt
+					numeric
 					createdAt
+					createdAtMs
+					real
+					text
 					role
-					roleText
-					roleText2
-					profession
-					initials
 					isConfirmed
 					posts {
 						id
@@ -453,104 +395,100 @@ describe.sequential('Query tests', async () => {
 					authorId
 					content
 					author {
-						a
 						id
 						name
 						email
-						birthdayString
-						birthdayDate
+						textJson
+						numeric
 						createdAt
+						createdAtMs
+						real
+						text
 						role
-						roleText
-						roleText2
-						profession
-						initials
 						isConfirmed
 					}
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				usersSingle: {
-					a: [1, 5, 10, 25, 40],
 					id: 1,
 					name: 'FirstUser',
 					email: 'userOne@notmail.com',
-					birthdayString: '2024-04-02',
-					birthdayDate: '2024-04-02T00:00:00.000Z',
-					createdAt: '2024-04-02T06:44:41.785Z',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
 					role: 'admin',
-					roleText: null,
-					roleText2: 'user',
-					profession: 'FirstUserProf',
-					initials: 'FU',
 					isConfirmed: true,
 					posts: [
 						{
 							id: 1,
 							authorId: 1,
-							content: '1MESSAGE'
+							content: '1MESSAGE',
 						},
 						{
 							id: 2,
 							authorId: 1,
-							content: '2MESSAGE'
+							content: '2MESSAGE',
 						},
 						{
 							id: 3,
 							authorId: 1,
-							content: '3MESSAGE'
+							content: '3MESSAGE',
 						},
 
 						{
 							id: 6,
 							authorId: 1,
-							content: '4MESSAGE'
-						}
-					]
+							content: '4MESSAGE',
+						},
+					],
 				},
 				postsSingle: {
 					id: 1,
 					authorId: 1,
 					content: '1MESSAGE',
 					author: {
-						a: [1, 5, 10, 25, 40],
 						id: 1,
 						name: 'FirstUser',
 						email: 'userOne@notmail.com',
-						birthdayString: '2024-04-02',
-						birthdayDate: '2024-04-02T00:00:00.000Z',
-						createdAt: '2024-04-02T06:44:41.785Z',
+						textJson: '{"field":"value"}',
+						// RQB can't handle blobs in JSON, for now
+						// blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
 						role: 'admin',
-						roleText: null,
-						roleText2: 'user',
-						profession: 'FirstUserProf',
-						initials: 'FU',
-						isConfirmed: true
-					}
-				}
-			}
-		})
-	})
+						isConfirmed: true,
+					},
+				},
+			},
+		});
+	});
 
 	it(`Select array with relations`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
 				users {
-					a
 					id
 					name
 					email
-					birthdayString
-					birthdayDate
+					textJson
+					blobBigInt
+					numeric
 					createdAt
+					createdAtMs
+					real
+					text
 					role
-					roleText
-					roleText2
-					profession
-					initials
 					isConfirmed
 					posts {
 						id
@@ -564,107 +502,102 @@ describe.sequential('Query tests', async () => {
 					authorId
 					content
 					author {
-						a
 						id
 						name
 						email
-						birthdayString
-						birthdayDate
+						textJson
+						numeric
 						createdAt
+						createdAtMs
+						real
+						text
 						role
-						roleText
-						roleText2
-						profession
-						initials
 						isConfirmed
 					}
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				users: [
 					{
-						a: [1, 5, 10, 25, 40],
 						id: 1,
 						name: 'FirstUser',
 						email: 'userOne@notmail.com',
-						birthdayString: '2024-04-02',
-						birthdayDate: '2024-04-02T00:00:00.000Z',
-						createdAt: '2024-04-02T06:44:41.785Z',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
 						role: 'admin',
-						roleText: null,
-						roleText2: 'user',
-						profession: 'FirstUserProf',
-						initials: 'FU',
 						isConfirmed: true,
 						posts: [
 							{
 								id: 1,
 								authorId: 1,
-								content: '1MESSAGE'
+								content: '1MESSAGE',
 							},
 							{
 								id: 2,
 								authorId: 1,
-								content: '2MESSAGE'
+								content: '2MESSAGE',
 							},
 							{
 								id: 3,
 								authorId: 1,
-								content: '3MESSAGE'
+								content: '3MESSAGE',
 							},
 							{
 								id: 6,
 								authorId: 1,
-								content: '4MESSAGE'
-							}
-						]
+								content: '4MESSAGE',
+							},
+						],
 					},
 					{
-						a: null,
 						id: 2,
 						name: 'SecondUser',
 						email: null,
-						birthdayString: null,
-						birthdayDate: null,
-						createdAt: '2024-04-02T06:44:41.785Z',
-						role: null,
-						roleText: null,
-						roleText2: 'user',
-						profession: null,
-						initials: null,
+						textJson: null,
+						blobBigInt: null,
+						numeric: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						real: null,
+						text: null,
+						role: 'user',
 						isConfirmed: null,
-						posts: []
+						posts: [],
 					},
 					{
-						a: null,
 						id: 5,
 						name: 'FifthUser',
 						email: null,
-						birthdayString: null,
-						birthdayDate: null,
-						createdAt: '2024-04-02T06:44:41.785Z',
-						role: null,
-						roleText: null,
-						roleText2: 'user',
-						profession: null,
-						initials: null,
+						textJson: null,
+						blobBigInt: null,
+						numeric: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						real: null,
+						text: null,
+						role: 'user',
 						isConfirmed: null,
 						posts: [
 							{
 								id: 4,
 								authorId: 5,
-								content: '1MESSAGE'
+								content: '1MESSAGE',
 							},
 							{
 								id: 5,
 								authorId: 5,
-								content: '2MESSAGE'
-							}
-						]
-					}
+								content: '2MESSAGE',
+							},
+						],
+					},
 				],
 				posts: [
 					{
@@ -672,182 +605,180 @@ describe.sequential('Query tests', async () => {
 						authorId: 1,
 						content: '1MESSAGE',
 						author: {
-							a: [1, 5, 10, 25, 40],
 							id: 1,
 							name: 'FirstUser',
 							email: 'userOne@notmail.com',
-							birthdayString: '2024-04-02',
-							birthdayDate: '2024-04-02T00:00:00.000Z',
-							createdAt: '2024-04-02T06:44:41.785Z',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
 							role: 'admin',
-							roleText: null,
-							roleText2: 'user',
-							profession: 'FirstUserProf',
-							initials: 'FU',
-							isConfirmed: true
-						}
+							isConfirmed: true,
+						},
 					},
 					{
 						id: 2,
 						authorId: 1,
 						content: '2MESSAGE',
 						author: {
-							a: [1, 5, 10, 25, 40],
 							id: 1,
 							name: 'FirstUser',
 							email: 'userOne@notmail.com',
-							birthdayString: '2024-04-02',
-							birthdayDate: '2024-04-02T00:00:00.000Z',
-							createdAt: '2024-04-02T06:44:41.785Z',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
 							role: 'admin',
-							roleText: null,
-							roleText2: 'user',
-							profession: 'FirstUserProf',
-							initials: 'FU',
-							isConfirmed: true
-						}
+							isConfirmed: true,
+						},
 					},
 					{
 						id: 3,
 						authorId: 1,
 						content: '3MESSAGE',
 						author: {
-							a: [1, 5, 10, 25, 40],
 							id: 1,
 							name: 'FirstUser',
 							email: 'userOne@notmail.com',
-							birthdayString: '2024-04-02',
-							birthdayDate: '2024-04-02T00:00:00.000Z',
-							createdAt: '2024-04-02T06:44:41.785Z',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
 							role: 'admin',
-							roleText: null,
-							roleText2: 'user',
-							profession: 'FirstUserProf',
-							initials: 'FU',
-							isConfirmed: true
-						}
+							isConfirmed: true,
+						},
 					},
 					{
 						id: 4,
 						authorId: 5,
 						content: '1MESSAGE',
 						author: {
-							a: null,
 							id: 5,
 							name: 'FifthUser',
 							email: null,
-							birthdayString: null,
-							birthdayDate: null,
-							createdAt: '2024-04-02T06:44:41.785Z',
-							role: null,
-							roleText: null,
-							roleText2: 'user',
-							profession: null,
-							initials: null,
-							isConfirmed: null
-						}
+							textJson: null,
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: null,
+							numeric: null,
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: null,
+							real: null,
+							text: null,
+							role: 'user',
+							isConfirmed: null,
+						},
 					},
 					{
 						id: 5,
 						authorId: 5,
 						content: '2MESSAGE',
 						author: {
-							a: null,
 							id: 5,
 							name: 'FifthUser',
 							email: null,
-							birthdayString: null,
-							birthdayDate: null,
-							createdAt: '2024-04-02T06:44:41.785Z',
-							role: null,
-							roleText: null,
-							roleText2: 'user',
-							profession: null,
-							initials: null,
-							isConfirmed: null
-						}
+							textJson: null,
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: null,
+							numeric: null,
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: null,
+							real: null,
+							text: null,
+							role: 'user',
+							isConfirmed: null,
+						},
 					},
 					{
 						id: 6,
 						authorId: 1,
 						content: '4MESSAGE',
 						author: {
-							a: [1, 5, 10, 25, 40],
 							id: 1,
 							name: 'FirstUser',
 							email: 'userOne@notmail.com',
-							birthdayString: '2024-04-02',
-							birthdayDate: '2024-04-02T00:00:00.000Z',
-							createdAt: '2024-04-02T06:44:41.785Z',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
 							role: 'admin',
-							roleText: null,
-							roleText2: 'user',
-							profession: 'FirstUserProf',
-							initials: 'FU',
-							isConfirmed: true
-						}
-					}
-				]
-			}
-		})
-	})
+							isConfirmed: true,
+						},
+					},
+				],
+			},
+		});
+	});
 
 	it(`Insert single`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
 				insertIntoUsersSingle(
 					values: {
-						a: [1, 5, 10, 25, 40]
 						id: 3
 						name: "ThirdUser"
 						email: "userThree@notmail.com"
-						birthdayString: "2024-04-02T06:44:41.785Z"
-						birthdayDate: "2024-04-02T06:44:41.785Z"
+						textJson: "{ \\"field\\": \\"value\\" }"
+						blobBigInt: "10"
+						numeric: "250.2"
 						createdAt: "2024-04-02T06:44:41.785Z"
+						createdAtMs: "2024-04-02T06:44:41.785Z"
+						real: 13.5
+						text: "sometext"
 						role: "admin"
-						roleText: null
-						profession: "ThirdUserProf"
-						initials: "FU"
 						isConfirmed: true
 					}
 				) {
-					a
 					id
 					name
 					email
-					birthdayString
-					birthdayDate
+					textJson
+					blobBigInt
+					numeric
 					createdAt
+					createdAtMs
+					real
+					text
 					role
-					roleText
-					roleText2
-					profession
-					initials
 					isConfirmed
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				insertIntoUsersSingle: {
-					a: [1, 5, 10, 25, 40],
 					id: 3,
 					name: 'ThirdUser',
 					email: 'userThree@notmail.com',
-					birthdayString: '2024-04-02',
-					birthdayDate: '2024-04-02T00:00:00.000Z',
-					createdAt: '2024-04-02T06:44:41.785Z',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
 					role: 'admin',
-					roleText: null,
-					roleText2: 'user',
-					profession: 'ThirdUserProf',
-					initials: 'FU',
-					isConfirmed: true
-				}
-			}
-		})
-	})
+					isConfirmed: true,
+				},
+			},
+		});
+	});
 
 	it(`Insert array`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -855,90 +786,86 @@ describe.sequential('Query tests', async () => {
 				insertIntoUsers(
 					values: [
 						{
-							a: [1, 5, 10, 25, 40]
 							id: 3
 							name: "ThirdUser"
 							email: "userThree@notmail.com"
-							birthdayString: "2024-04-02T06:44:41.785Z"
-							birthdayDate: "2024-04-02T06:44:41.785Z"
+							textJson: "{ \\"field\\": \\"value\\" }"
+							blobBigInt: "10"
+							numeric: "250.2"
 							createdAt: "2024-04-02T06:44:41.785Z"
+							createdAtMs: "2024-04-02T06:44:41.785Z"
+							real: 13.5
+							text: "sometext"
 							role: "admin"
-							roleText: null
-							profession: "ThirdUserProf"
-							initials: "FU"
 							isConfirmed: true
 						}
 						{
-							a: [1, 5, 10, 25, 40]
 							id: 4
 							name: "FourthUser"
 							email: "userFour@notmail.com"
-							birthdayString: "2024-04-04"
-							birthdayDate: "2024-04-04T00:00:00.000Z"
-							createdAt: "2024-04-04T06:44:41.785Z"
+							textJson: "{ \\"field\\": \\"value\\" }"
+							blobBigInt: "10"
+							numeric: "250.2"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							createdAtMs: "2024-04-02T06:44:41.785Z"
+							real: 13.5
+							text: "sometext"
 							role: "user"
-							roleText: null
-							roleText2: "user"
-							profession: "FourthUserProf"
-							initials: "SU"
 							isConfirmed: false
 						}
 					]
 				) {
-					a
 					id
 					name
 					email
-					birthdayString
-					birthdayDate
+					textJson
+					blobBigInt
+					numeric
 					createdAt
+					createdAtMs
+					real
+					text
 					role
-					roleText
-					roleText2
-					profession
-					initials
 					isConfirmed
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				insertIntoUsers: [
 					{
-						a: [1, 5, 10, 25, 40],
 						id: 3,
 						name: 'ThirdUser',
 						email: 'userThree@notmail.com',
-						birthdayString: '2024-04-02',
-						birthdayDate: '2024-04-02T00:00:00.000Z',
-						createdAt: '2024-04-02T06:44:41.785Z',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
 						role: 'admin',
-						roleText: null,
-						roleText2: 'user',
-						profession: 'ThirdUserProf',
-						initials: 'FU',
-						isConfirmed: true
+						isConfirmed: true,
 					},
 					{
-						a: [1, 5, 10, 25, 40],
 						id: 4,
 						name: 'FourthUser',
 						email: 'userFour@notmail.com',
-						birthdayString: '2024-04-04',
-						birthdayDate: '2024-04-04T00:00:00.000Z',
-						createdAt: '2024-04-04T06:44:41.785Z',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
 						role: 'user',
-						roleText: null,
-						roleText2: 'user',
-						profession: 'FourthUserProf',
-						initials: 'SU',
-						isConfirmed: false
-					}
-				]
-			}
-		})
-	})
+						isConfirmed: false,
+					},
+				],
+			},
+		});
+	});
 
 	it(`Update`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -951,7 +878,7 @@ describe.sequential('Query tests', async () => {
 					userId
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -961,19 +888,19 @@ describe.sequential('Query tests', async () => {
 						address: 'Edited',
 						isConfirmed: true,
 						registrationDate: '2024-03-27T03:54:45.235Z',
-						userId: 1
+						userId: 1,
 					},
 					{
 						id: 2,
 						address: 'Edited',
 						isConfirmed: true,
 						registrationDate: '2024-03-27T03:55:42.358Z',
-						userId: 2
-					}
-				]
-			}
-		})
-	})
+						userId: 2,
+					},
+				],
+			},
+		});
+	});
 
 	it(`Delete`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -986,7 +913,7 @@ describe.sequential('Query tests', async () => {
 					userId
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -996,20 +923,20 @@ describe.sequential('Query tests', async () => {
 						address: 'AdOne',
 						isConfirmed: false,
 						registrationDate: '2024-03-27T03:54:45.235Z',
-						userId: 1
+						userId: 1,
 					},
 					{
 						id: 2,
 						address: 'AdTwo',
 						isConfirmed: false,
 						registrationDate: '2024-03-27T03:55:42.358Z',
-						userId: 2
-					}
-				]
-			}
-		})
-	})
-})
+						userId: 2,
+					},
+				],
+			},
+		});
+	});
+});
 
 describe.sequential('Arguments tests', async () => {
 	it('Order by', async () => {
@@ -1023,7 +950,7 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1031,38 +958,38 @@ describe.sequential('Arguments tests', async () => {
 					{
 						id: 4,
 						authorId: 5,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 5,
 						authorId: 5,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 1,
 						authorId: 1,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 2,
 						authorId: 1,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 3,
 						authorId: 1,
-						content: '3MESSAGE'
+						content: '3MESSAGE',
 					},
 
 					{
 						id: 6,
 						authorId: 1,
-						content: '4MESSAGE'
-					}
-				]
-			}
-		})
-	})
+						content: '4MESSAGE',
+					},
+				],
+			},
+		});
+	});
 
 	it('Order by on single', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1075,18 +1002,18 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				postsSingle: {
 					id: 4,
 					authorId: 5,
-					content: '1MESSAGE'
-				}
-			}
-		})
-	})
+					content: '1MESSAGE',
+				},
+			},
+		});
+	});
 
 	it('Offset & limit', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1097,7 +1024,7 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1105,17 +1032,17 @@ describe.sequential('Arguments tests', async () => {
 					{
 						id: 2,
 						authorId: 1,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 3,
 						authorId: 1,
-						content: '3MESSAGE'
-					}
-				]
-			}
-		})
-	})
+						content: '3MESSAGE',
+					},
+				],
+			},
+		});
+	});
 
 	it('Offset on single', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1126,18 +1053,18 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
 				postsSingle: {
 					id: 2,
 					authorId: 1,
-					content: '2MESSAGE'
-				}
-			}
-		})
-	})
+					content: '2MESSAGE',
+				},
+			},
+		});
+	});
 
 	it('Filters - top level AND', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1148,7 +1075,7 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1156,17 +1083,17 @@ describe.sequential('Arguments tests', async () => {
 					{
 						id: 2,
 						authorId: 1,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 6,
 						authorId: 1,
-						content: '4MESSAGE'
-					}
-				]
-			}
-		})
-	})
+						content: '4MESSAGE',
+					},
+				],
+			},
+		});
+	});
 
 	it('Filters - top level OR', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1177,7 +1104,7 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1185,32 +1112,32 @@ describe.sequential('Arguments tests', async () => {
 					{
 						id: 1,
 						authorId: 1,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 2,
 						authorId: 1,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 3,
 						authorId: 1,
-						content: '3MESSAGE'
+						content: '3MESSAGE',
 					},
 					{
 						id: 4,
 						authorId: 5,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 5,
 						authorId: 5,
-						content: '2MESSAGE'
-					}
-				]
-			}
-		})
-	})
+						content: '2MESSAGE',
+					},
+				],
+			},
+		});
+	});
 
 	it('Update filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1221,7 +1148,7 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1229,32 +1156,32 @@ describe.sequential('Arguments tests', async () => {
 					{
 						id: 1,
 						authorId: 1,
-						content: 'UPDATED'
+						content: 'UPDATED',
 					},
 					{
 						id: 2,
 						authorId: 1,
-						content: 'UPDATED'
+						content: 'UPDATED',
 					},
 					{
 						id: 3,
 						authorId: 1,
-						content: 'UPDATED'
+						content: 'UPDATED',
 					},
 					{
 						id: 4,
 						authorId: 5,
-						content: 'UPDATED'
+						content: 'UPDATED',
 					},
 					{
 						id: 5,
 						authorId: 5,
-						content: 'UPDATED'
-					}
-				]
-			}
-		})
-	})
+						content: 'UPDATED',
+					},
+				],
+			},
+		});
+	});
 
 	it('Delete filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1265,7 +1192,7 @@ describe.sequential('Arguments tests', async () => {
 					content
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1273,32 +1200,32 @@ describe.sequential('Arguments tests', async () => {
 					{
 						id: 1,
 						authorId: 1,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 2,
 						authorId: 1,
-						content: '2MESSAGE'
+						content: '2MESSAGE',
 					},
 					{
 						id: 3,
 						authorId: 1,
-						content: '3MESSAGE'
+						content: '3MESSAGE',
 					},
 					{
 						id: 4,
 						authorId: 5,
-						content: '1MESSAGE'
+						content: '1MESSAGE',
 					},
 					{
 						id: 5,
 						authorId: 5,
-						content: '2MESSAGE'
-					}
-				]
-			}
-		})
-	})
+						content: '2MESSAGE',
+					},
+				],
+			},
+		});
+	});
 
 	it('Relations orderBy', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1312,7 +1239,7 @@ describe.sequential('Arguments tests', async () => {
 					}
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1323,28 +1250,28 @@ describe.sequential('Arguments tests', async () => {
 							{
 								id: 6,
 								authorId: 1,
-								content: '4MESSAGE'
+								content: '4MESSAGE',
 							},
 							{
 								id: 3,
 								authorId: 1,
-								content: '3MESSAGE'
+								content: '3MESSAGE',
 							},
 							{
 								id: 2,
 								authorId: 1,
-								content: '2MESSAGE'
+								content: '2MESSAGE',
 							},
 							{
 								id: 1,
 								authorId: 1,
-								content: '1MESSAGE'
-							}
-						]
+								content: '1MESSAGE',
+							},
+						],
 					},
 					{
 						id: 2,
-						posts: []
+						posts: [],
 					},
 					{
 						id: 5,
@@ -1352,19 +1279,19 @@ describe.sequential('Arguments tests', async () => {
 							{
 								id: 5,
 								authorId: 5,
-								content: '2MESSAGE'
+								content: '2MESSAGE',
 							},
 							{
 								id: 4,
 								authorId: 5,
-								content: '1MESSAGE'
-							}
-						]
-					}
-				]
-			}
-		})
-	})
+								content: '1MESSAGE',
+							},
+						],
+					},
+				],
+			},
+		});
+	});
 
 	it('Relations offset & limit', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
@@ -1378,7 +1305,7 @@ describe.sequential('Arguments tests', async () => {
 					}
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1389,18 +1316,18 @@ describe.sequential('Arguments tests', async () => {
 							{
 								id: 2,
 								authorId: 1,
-								content: '2MESSAGE'
+								content: '2MESSAGE',
 							},
 							{
 								id: 3,
 								authorId: 1,
-								content: '3MESSAGE'
-							}
-						]
+								content: '3MESSAGE',
+							},
+						],
 					},
 					{
 						id: 2,
-						posts: []
+						posts: [],
 					},
 					{
 						id: 5,
@@ -1408,28 +1335,28 @@ describe.sequential('Arguments tests', async () => {
 							{
 								id: 5,
 								authorId: 5,
-								content: '2MESSAGE'
-							}
-						]
-					}
-				]
-			}
-		})
-	})
+								content: '2MESSAGE',
+							},
+						],
+					},
+				],
+			},
+		});
+	});
 
 	it('Relations filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
 				users {
 					id
-					posts(where: { content: { ilike: "2%" } }) {
+					posts(where: { content: { like: "2%" } }) {
 						id
 						authorId
 						content
 					}
 				}
 			}
-		`)
+		`);
 
 		expect(res).toStrictEqual({
 			data: {
@@ -1440,13 +1367,13 @@ describe.sequential('Arguments tests', async () => {
 							{
 								id: 2,
 								authorId: 1,
-								content: '2MESSAGE'
-							}
-						]
+								content: '2MESSAGE',
+							},
+						],
 					},
 					{
 						id: 2,
-						posts: []
+						posts: [],
 					},
 					{
 						id: 5,
@@ -1454,25 +1381,23 @@ describe.sequential('Arguments tests', async () => {
 							{
 								id: 5,
 								authorId: 5,
-								content: '2MESSAGE'
-							}
-						]
-					}
-				]
-			}
-		})
-	})
-})
-
-import z from 'zod'
+								content: '2MESSAGE',
+							},
+						],
+					},
+				],
+			},
+		});
+	});
+});
 
 describe.sequential('Returned data tests', () => {
 	it('Schema', () => {
-		expect(ctx.schema instanceof GraphQLSchema).toBe(true)
-	})
+		expect(ctx.schema instanceof GraphQLSchema).toBe(true);
+	});
 
 	it('Entities', () => {
-		ctx.entities.mutations
+		ctx.entities.mutations;
 		const schema = z
 			.object({
 				queries: z
@@ -1483,28 +1408,28 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										orderBy: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
 											.strict(),
 										offset: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										limit: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						usersSingle: z
@@ -1513,23 +1438,23 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										orderBy: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
 											.strict(),
 										offset: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType)
+								type: z.instanceof(GraphQLObjectType),
 							})
 							.strict(),
 						posts: z
@@ -1538,28 +1463,28 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										orderBy: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
 											.strict(),
 										offset: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										limit: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						postsSingle: z
@@ -1568,23 +1493,23 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										orderBy: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
 											.strict(),
 										offset: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType)
+								type: z.instanceof(GraphQLObjectType),
 							})
 							.strict(),
 						customers: z
@@ -1593,28 +1518,28 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										orderBy: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
 											.strict(),
 										offset: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										limit: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						customersSingle: z
@@ -1623,25 +1548,25 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										orderBy: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
 											.strict(),
 										offset: z
 											.object({
-												type: z.instanceof(GraphQLScalarType)
+												type: z.instanceof(GraphQLScalarType),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType)
+								type: z.instanceof(GraphQLObjectType),
 							})
-							.strict()
+							.strict(),
 					})
 					.strict(),
 				mutations: z
@@ -1652,13 +1577,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										values: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						insertIntoUsersSingle: z
@@ -1667,13 +1592,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										values: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType)
+								type: z.instanceof(GraphQLObjectType),
 							})
 							.strict(),
 						updateUsers: z
@@ -1682,18 +1607,18 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										set: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						deleteFromUsers: z
@@ -1702,13 +1627,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						insertIntoPosts: z
@@ -1717,13 +1642,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										values: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						insertIntoPostsSingle: z
@@ -1732,13 +1657,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										values: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType)
+								type: z.instanceof(GraphQLObjectType),
 							})
 							.strict(),
 						updatePosts: z
@@ -1747,18 +1672,18 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										set: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						deleteFromPosts: z
@@ -1767,13 +1692,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						insertIntoCustomers: z
@@ -1782,13 +1707,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										values: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						insertIntoCustomersSingle: z
@@ -1797,13 +1722,13 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										values: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType)
+								type: z.instanceof(GraphQLObjectType),
 							})
 							.strict(),
 						updateCustomers: z
@@ -1812,18 +1737,18 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										set: z
 											.object({
-												type: z.instanceof(GraphQLNonNull)
+												type: z.instanceof(GraphQLNonNull),
 											})
 											.strict(),
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
 							.strict(),
 						deleteFromCustomers: z
@@ -1832,15 +1757,15 @@ describe.sequential('Returned data tests', () => {
 									.object({
 										where: z
 											.object({
-												type: z.instanceof(GraphQLInputObjectType)
+												type: z.instanceof(GraphQLInputObjectType),
 											})
-											.strict()
+											.strict(),
 									})
 									.strict(),
 								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull)
+								type: z.instanceof(GraphQLNonNull),
 							})
-							.strict()
+							.strict(),
 					})
 					.strict(),
 				types: z
@@ -1850,7 +1775,7 @@ describe.sequential('Returned data tests', () => {
 						PostsItem: z.instanceof(GraphQLObjectType),
 						PostsSelectItem: z.instanceof(GraphQLObjectType),
 						CustomersItem: z.instanceof(GraphQLObjectType),
-						CustomersSelectItem: z.instanceof(GraphQLObjectType)
+						CustomersSelectItem: z.instanceof(GraphQLObjectType),
 					})
 					.strict(),
 				inputs: z
@@ -1866,254 +1791,254 @@ describe.sequential('Returned data tests', () => {
 						CustomersFilters: z.instanceof(GraphQLInputObjectType),
 						CustomersOrderBy: z.instanceof(GraphQLInputObjectType),
 						CustomersInsertInput: z.instanceof(GraphQLInputObjectType),
-						CustomersUpdateInput: z.instanceof(GraphQLInputObjectType)
+						CustomersUpdateInput: z.instanceof(GraphQLInputObjectType),
 					})
-					.strict()
+					.strict(),
 			})
-			.strict()
+			.strict();
 
-		const parseRes = schema.safeParse(ctx.entities)
+		const parseRes = schema.safeParse(ctx.entities);
 
-		if (!parseRes.success) console.log(parseRes.error)
+		if (!parseRes.success) console.log(parseRes.error);
 
-		expect(parseRes.success).toEqual(true)
-	})
-})
+		expect(parseRes.success).toEqual(true);
+	});
+});
 
 describe.sequential('Type tests', () => {
 	it('Schema', () => {
-		expectTypeOf(ctx.schema).toEqualTypeOf<GraphQLSchema>()
-	})
+		expectTypeOf(ctx.schema).toEqualTypeOf<GraphQLSchema>();
+	});
 
 	it('Queries', () => {
 		expectTypeOf(ctx.entities.queries).toEqualTypeOf<
 			{
 				readonly customers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
-						orderBy: { type: GraphQLInputObjectType }
-						offset: { type: GraphQLScalarType<number, number> }
-						limit: { type: GraphQLScalarType<number, number> }
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: SelectResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>
-				}
+						orderBy: { type: GraphQLInputObjectType };
+						offset: { type: GraphQLScalarType<number, number> };
+						limit: { type: GraphQLScalarType<number, number> };
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: SelectResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>;
+				};
 				readonly posts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
-						orderBy: { type: GraphQLInputObjectType }
-						offset: { type: GraphQLScalarType<number, number> }
-						limit: { type: GraphQLScalarType<number, number> }
-						where: { type: GraphQLInputObjectType }
-					}
+						orderBy: { type: GraphQLInputObjectType };
+						offset: { type: GraphQLScalarType<number, number> };
+						limit: { type: GraphQLScalarType<number, number> };
+						where: { type: GraphQLInputObjectType };
+					};
 					resolve: SelectResolver<
 						typeof schema.Posts,
 						ExtractTables<typeof schema>,
 						typeof schema.postsRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>
-				}
+					>;
+				};
 				readonly users: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
-						orderBy: { type: GraphQLInputObjectType }
-						offset: { type: GraphQLScalarType<number, number> }
-						limit: { type: GraphQLScalarType<number, number> }
-						where: { type: GraphQLInputObjectType }
-					}
+						orderBy: { type: GraphQLInputObjectType };
+						offset: { type: GraphQLScalarType<number, number> };
+						limit: { type: GraphQLScalarType<number, number> };
+						where: { type: GraphQLInputObjectType };
+					};
 					resolve: SelectResolver<
 						typeof schema.Users,
 						ExtractTables<typeof schema>,
 						typeof schema.usersRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>
-				}
+					>;
+				};
 			} & {
 				readonly customersSingle: {
-					type: GraphQLObjectType
+					type: GraphQLObjectType;
 					args: {
-						orderBy: { type: GraphQLInputObjectType }
-						offset: { type: GraphQLScalarType<number, number> }
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: SelectSingleResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>
-				}
+						orderBy: { type: GraphQLInputObjectType };
+						offset: { type: GraphQLScalarType<number, number> };
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: SelectSingleResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>;
+				};
 				readonly postsSingle: {
-					type: GraphQLObjectType
+					type: GraphQLObjectType;
 					args: {
-						orderBy: { type: GraphQLInputObjectType }
-						offset: { type: GraphQLScalarType<number, number> }
-						where: { type: GraphQLInputObjectType }
-					}
+						orderBy: { type: GraphQLInputObjectType };
+						offset: { type: GraphQLScalarType<number, number> };
+						where: { type: GraphQLInputObjectType };
+					};
 					resolve: SelectSingleResolver<
 						typeof schema.Posts,
 						ExtractTables<typeof schema>,
 						typeof schema.postsRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>
-				}
+					>;
+				};
 				readonly usersSingle: {
-					type: GraphQLObjectType
+					type: GraphQLObjectType;
 					args: {
-						orderBy: { type: GraphQLInputObjectType }
-						offset: { type: GraphQLScalarType<number, number> }
-						where: { type: GraphQLInputObjectType }
-					}
+						orderBy: { type: GraphQLInputObjectType };
+						offset: { type: GraphQLScalarType<number, number> };
+						where: { type: GraphQLInputObjectType };
+					};
 					resolve: SelectSingleResolver<
 						typeof schema.Users,
 						ExtractTables<typeof schema>,
 						typeof schema.usersRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>
-				}
+					>;
+				};
 			}
-		>()
-	})
+		>();
+	});
 
 	it('Mutations', () => {
 		expectTypeOf(ctx.entities.mutations).toEqualTypeOf<
 			{
 				readonly insertIntoCustomers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
 						values: {
-							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>
-						}
-					}
-					resolve: InsertArrResolver<typeof schema.Customers, false>
-				}
+							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>;
+						};
+					};
+					resolve: InsertArrResolver<typeof schema.Customers, false>;
+				};
 				readonly insertIntoPosts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
 						values: {
-							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>
-						}
-					}
-					resolve: InsertArrResolver<typeof schema.Posts, false>
-				}
+							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>;
+						};
+					};
+					resolve: InsertArrResolver<typeof schema.Posts, false>;
+				};
 				readonly insertIntoUsers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
 						values: {
-							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>
-						}
-					}
-					resolve: InsertArrResolver<typeof schema.Users, false>
-				}
+							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>;
+						};
+					};
+					resolve: InsertArrResolver<typeof schema.Users, false>;
+				};
 			} & {
 				readonly insertIntoCustomersSingle: {
-					type: GraphQLObjectType
+					type: GraphQLObjectType;
 					args: {
 						values: {
-							type: GraphQLNonNull<GraphQLInputObjectType>
-						}
-					}
-					resolve: InsertResolver<typeof schema.Customers, false>
-				}
+							type: GraphQLNonNull<GraphQLInputObjectType>;
+						};
+					};
+					resolve: InsertResolver<typeof schema.Customers, false>;
+				};
 				readonly insertIntoPostsSingle: {
-					type: GraphQLObjectType
+					type: GraphQLObjectType;
 					args: {
 						values: {
-							type: GraphQLNonNull<GraphQLInputObjectType>
-						}
-					}
-					resolve: InsertResolver<typeof schema.Posts, false>
-				}
+							type: GraphQLNonNull<GraphQLInputObjectType>;
+						};
+					};
+					resolve: InsertResolver<typeof schema.Posts, false>;
+				};
 				readonly insertIntoUsersSingle: {
-					type: GraphQLObjectType
+					type: GraphQLObjectType;
 					args: {
 						values: {
-							type: GraphQLNonNull<GraphQLInputObjectType>
-						}
-					}
-					resolve: InsertResolver<typeof schema.Users, false>
-				}
+							type: GraphQLNonNull<GraphQLInputObjectType>;
+						};
+					};
+					resolve: InsertResolver<typeof schema.Users, false>;
+				};
 			} & {
 				readonly updateCustomers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
 						set: {
-							type: GraphQLNonNull<GraphQLInputObjectType>
-						}
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: UpdateResolver<typeof schema.Customers, false>
-				}
+							type: GraphQLNonNull<GraphQLInputObjectType>;
+						};
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: UpdateResolver<typeof schema.Customers, false>;
+				};
 				readonly updatePosts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
 						set: {
-							type: GraphQLNonNull<GraphQLInputObjectType>
-						}
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: UpdateResolver<typeof schema.Posts, false>
-				}
+							type: GraphQLNonNull<GraphQLInputObjectType>;
+						};
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: UpdateResolver<typeof schema.Posts, false>;
+				};
 				readonly updateUsers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
 						set: {
-							type: GraphQLNonNull<GraphQLInputObjectType>
-						}
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: UpdateResolver<typeof schema.Users, false>
-				}
+							type: GraphQLNonNull<GraphQLInputObjectType>;
+						};
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: UpdateResolver<typeof schema.Users, false>;
+				};
 			} & {
 				readonly deleteFromCustomers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: DeleteResolver<typeof schema.Customers, false>
-				}
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: DeleteResolver<typeof schema.Customers, false>;
+				};
 				readonly deleteFromPosts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: DeleteResolver<typeof schema.Posts, false>
-				}
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: DeleteResolver<typeof schema.Posts, false>;
+				};
 				readonly deleteFromUsers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
 					args: {
-						where: { type: GraphQLInputObjectType }
-					}
-					resolve: DeleteResolver<typeof schema.Users, false>
-				}
+						where: { type: GraphQLInputObjectType };
+					};
+					resolve: DeleteResolver<typeof schema.Users, false>;
+				};
 			}
-		>()
-	})
+		>();
+	});
 
 	it('Types', () => {
 		expectTypeOf(ctx.entities.types).toEqualTypeOf<
 			{
-				readonly CustomersItem: GraphQLObjectType
-				readonly PostsItem: GraphQLObjectType
-				readonly UsersItem: GraphQLObjectType
+				readonly CustomersItem: GraphQLObjectType;
+				readonly PostsItem: GraphQLObjectType;
+				readonly UsersItem: GraphQLObjectType;
 			} & {
-				readonly CustomersSelectItem: GraphQLObjectType
-				readonly PostsSelectItem: GraphQLObjectType
-				readonly UsersSelectItem: GraphQLObjectType
+				readonly CustomersSelectItem: GraphQLObjectType;
+				readonly PostsSelectItem: GraphQLObjectType;
+				readonly UsersSelectItem: GraphQLObjectType;
 			}
-		>()
-	})
+		>();
+	});
 
 	it('Inputs', () => {
 		expectTypeOf(ctx.entities.inputs).toEqualTypeOf<
 			{
-				readonly UsersFilters: GraphQLInputObjectType
-				readonly CustomersFilters: GraphQLInputObjectType
-				readonly PostsFilters: GraphQLInputObjectType
+				readonly UsersFilters: GraphQLInputObjectType;
+				readonly CustomersFilters: GraphQLInputObjectType;
+				readonly PostsFilters: GraphQLInputObjectType;
 			} & {
-				readonly UsersOrderBy: GraphQLInputObjectType
-				readonly CustomersOrderBy: GraphQLInputObjectType
-				readonly PostsOrderBy: GraphQLInputObjectType
+				readonly UsersOrderBy: GraphQLInputObjectType;
+				readonly CustomersOrderBy: GraphQLInputObjectType;
+				readonly PostsOrderBy: GraphQLInputObjectType;
 			} & {
-				readonly UsersInsertInput: GraphQLInputObjectType
-				readonly CustomersInsertInput: GraphQLInputObjectType
-				readonly PostsInsertInput: GraphQLInputObjectType
+				readonly UsersInsertInput: GraphQLInputObjectType;
+				readonly CustomersInsertInput: GraphQLInputObjectType;
+				readonly PostsInsertInput: GraphQLInputObjectType;
 			} & {
-				readonly UsersUpdateInput: GraphQLInputObjectType
-				readonly CustomersUpdateInput: GraphQLInputObjectType
-				readonly PostsUpdateInput: GraphQLInputObjectType
+				readonly UsersUpdateInput: GraphQLInputObjectType;
+				readonly CustomersUpdateInput: GraphQLInputObjectType;
+				readonly PostsUpdateInput: GraphQLInputObjectType;
 			}
-		>()
-	})
-})
+		>();
+	});
+});

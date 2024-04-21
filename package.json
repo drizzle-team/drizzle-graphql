@@ -14,7 +14,8 @@
 		"server-test:mysql": "DB_TYPE=mysql tsx watch server/server.ts",
 		"server-test:sqlite": "DB_TYPE=sqlite tsx watch server/server.ts",
 		"server-generate-migrations": "DB_TYPE=pg drizzle-kit generate:pg && DB_TYPE=mysql drizzle-kit generate:mysql && DB_TYPE=sqlite drizzle-kit generate:sqlite",
-		"test-generate-migrations": "DB_TYPE=pg drizzle-kit generate:pg --config=./drizzle.test-config.ts && DB_TYPE=mysql drizzle-kit generate:mysql --config=./drizzle.test-config.ts && DB_TYPE=sqlite drizzle-kit generate:sqlite --config=./drizzle.test-config.ts"
+		"test-generate-migrations": "DB_TYPE=pg drizzle-kit generate:pg --config=./drizzle.test-config.ts && DB_TYPE=mysql drizzle-kit generate:mysql --config=./drizzle.test-config.ts && DB_TYPE=sqlite drizzle-kit generate:sqlite --config=./drizzle.test-config.ts",
+		"lint": "dprint check --list-different"
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {
@@ -27,6 +28,7 @@
 		"axios": "^1.6.8",
 		"cpy": "^11.0.1",
 		"dockerode": "^4.0.2",
+		"dprint": "^0.45.1",
 		"drizzle-kit": "^0.20.16",
 		"drizzle-orm": "0.30.8-3d06cf2",
 		"get-port": "^7.0.0",

@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError } from 'axios';
 
 export class GraphQLClient {
 	constructor(private url: string) {}
@@ -9,22 +9,22 @@ export class GraphQLClient {
 				this.url,
 				JSON.stringify({
 					query: query,
-					variables: {}
+					variables: {},
 				}),
 				{
 					headers: {
 						accept: 'application/graphql-response+json, application/json',
-						'content-type': 'application/json'
-					}
-				}
-			)
+						'content-type': 'application/json',
+					},
+				},
+			);
 
-			return res.data
+			return res.data;
 		} catch (e) {
-			const err = e as AxiosError<any>
+			const err = e as AxiosError<any>;
 
-			console.warn(err.status, err.response?.data.errors)
-			return err.response?.data
+			console.warn(err.status, err.response?.data.errors);
+			return err.response?.data;
 		}
-	}
+	};
 }

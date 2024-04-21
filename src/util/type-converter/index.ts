@@ -1,3 +1,7 @@
+import { is } from 'drizzle-orm';
+import { MySqlInt, MySqlSerial } from 'drizzle-orm/mysql-core';
+import { PgInteger, PgSerial } from 'drizzle-orm/pg-core';
+import { SQLiteInteger } from 'drizzle-orm/sqlite-core';
 import {
 	GraphQLBoolean,
 	GraphQLFloat,
@@ -5,70 +9,67 @@ import {
 	GraphQLList,
 	GraphQLNonNull,
 	GraphQLScalarType,
-	GraphQLString
-} from 'graphql'
-import { is } from 'drizzle-orm'
-import { PgInteger, PgSerial } from 'drizzle-orm/pg-core'
-import { MySqlInt, MySqlSerial } from 'drizzle-orm/mysql-core'
-import { SQLiteInteger } from 'drizzle-orm/sqlite-core'
+	GraphQLString,
+} from 'graphql';
 
-import type { Column } from 'drizzle-orm'
-import type { PgArray } from 'drizzle-orm/pg-core'
-import type { ConvertedColumn } from './types'
+import type { Column } from 'drizzle-orm';
+import type { PgArray } from 'drizzle-orm/pg-core';
+import type { ConvertedColumn } from './types';
 
 const columnToGraphQLCore = (column: Column): ConvertedColumn => {
 	switch (column.dataType) {
 		case 'boolean':
-			return { type: GraphQLBoolean, description: 'Boolean' }
+			return { type: GraphQLBoolean, description: 'Boolean' };
 		case 'json':
-			return { type: GraphQLString, description: 'JSON' }
+			return { type: GraphQLString, description: 'JSON' };
 		case 'date':
-			return { type: GraphQLString, description: 'Date' }
+			return { type: GraphQLString, description: 'Date' };
 		case 'string':
-			return { type: GraphQLString, description: 'String' }
+			return { type: GraphQLString, description: 'String' };
 		case 'bigint':
-			return { type: GraphQLString, description: 'BigInt' }
+			return { type: GraphQLString, description: 'BigInt' };
 		case 'number':
-			return is(column, PgInteger) ||
-				is(column, PgSerial) ||
-				is(column, MySqlInt) ||
-				is(column, MySqlSerial) ||
-				is(column, SQLiteInteger)
+			return is(column, PgInteger)
+					|| is(column, PgSerial)
+					|| is(column, MySqlInt)
+					|| is(column, MySqlSerial)
+					|| is(column, SQLiteInteger)
 				? { type: GraphQLInt, description: 'Integer' }
-				: { type: GraphQLFloat, description: 'Float' }
+				: { type: GraphQLFloat, description: 'Float' };
 		case 'buffer':
-			return { type: new GraphQLList(new GraphQLNonNull(GraphQLInt)), description: 'Buffer' }
+			return { type: new GraphQLList(new GraphQLNonNull(GraphQLInt)), description: 'Buffer' };
 		case 'array': {
-			const innerType = columnToGraphQLCore((column as Column as PgArray<any, any>).baseColumn)
+			const innerType = columnToGraphQLCore((column as Column as PgArray<any, any>).baseColumn);
 
 			return {
 				type: new GraphQLList(new GraphQLNonNull(innerType.type as GraphQLScalarType)),
-				description: `Array<${innerType.description}>`
-			}
+				description: `Array<${innerType.description}>`,
+			};
 		}
 		case 'custom':
 		default:
-			throw new Error(`Type ${column.dataType} is not implemented!`)
+			throw new Error(`Type ${column.dataType} is not implemented!`);
 	}
-}
+};
 
 export const drizzleColumnToGraphQLType = <TColumn extends Column>(
 	column: TColumn,
 	forceNullable = false,
-	defaultIsNullable = false
+	defaultIsNullable = false,
 ): ConvertedColumn => {
-	const typeDesc = columnToGraphQLCore(column)
-	const noDesc = ['string', 'boolean', 'number']
-	if (noDesc.find((e) => e === column.dataType)) delete typeDesc.description
+	const typeDesc = columnToGraphQLCore(column);
+	const noDesc = ['string', 'boolean', 'number'];
+	if (noDesc.find((e) => e === column.dataType)) delete typeDesc.description;
 
-	if (forceNullable) return typeDesc
-	if (column.notNull && !(defaultIsNullable && (column.hasDefault || column.defaultFn)))
+	if (forceNullable) return typeDesc;
+	if (column.notNull && !(defaultIsNullable && (column.hasDefault || column.defaultFn))) {
 		return {
 			type: new GraphQLNonNull(typeDesc.type),
-			description: typeDesc.description
-		} as ConvertedColumn
+			description: typeDesc.description,
+		} as ConvertedColumn;
+	}
 
-	return typeDesc
-}
+	return typeDesc;
+};
 
-export * from './types'
+export * from './types';

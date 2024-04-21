@@ -1,5 +1,5 @@
-import { relations } from 'drizzle-orm'
-import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { relations } from 'drizzle-orm';
+import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const Users = sqliteTable('users', {
 	id: integer('id').primaryKey().notNull(),
@@ -14,9 +14,9 @@ export const Users = sqliteTable('users', {
 	text: text('text', { length: 255 }),
 	role: text('role', { enum: ['admin', 'user'] }).default('user'),
 	isConfirmed: integer('is_confirmed', {
-		mode: 'boolean'
-	})
-})
+		mode: 'boolean',
+	}),
+});
 
 export const Customers = sqliteTable('customers', {
 	id: integer('id').primaryKey(),
@@ -27,22 +27,22 @@ export const Customers = sqliteTable('customers', {
 		.$defaultFn(() => new Date()),
 	userId: integer('user_id')
 		.references(() => Users.id)
-		.notNull()
-})
+		.notNull(),
+});
 
 export const usersRelations = relations(Users, ({ many }) => ({
-	posts: many(Posts)
-}))
+	posts: many(Posts),
+}));
 
 export const Posts = sqliteTable('posts', {
 	id: integer('id').primaryKey(),
 	content: text('content'),
-	authorId: integer('author_id')
-})
+	authorId: integer('author_id'),
+});
 
 export const postsRelations = relations(Posts, ({ one }) => ({
 	author: one(Users, {
 		fields: [Posts.authorId],
-		references: [Users.id]
-	})
-}))
+		references: [Users.id],
+	}),
+}));
