@@ -59,7 +59,7 @@ jobs:
 
             - name: Run @arethetypeswrong/cli
               run: |
-                  pn attw package.tgz
+                  pnpm attw package.tgz
 
             - name: Publish
               shell: bash
