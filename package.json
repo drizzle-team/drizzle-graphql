@@ -89,6 +89,7 @@
 		"type": "git",
 		"url": "git+https://github.com/drizzle-team/drizzle-graphql.git"
 	},
+	"homepage": "https://orm.drizzle.team/docs/graphql",
 	"dependencies": {
 		"graphql-parse-resolve-info": "^4.13.0"
 	},
