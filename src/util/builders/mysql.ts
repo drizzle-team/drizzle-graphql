@@ -70,7 +70,7 @@ const generateSelectArray = (
 			try {
 				const { offset, limit, orderBy, where } = args;
 				const tableSelection = info.operation.selectionSet.selections.find(
-					(e) => e.kind === Kind.FIELD && e.name.value === queryName,
+					(e) => e.kind === Kind.FIELD && e.name.value === info.fieldName,
 				) as FieldNode;
 
 				const query = queryBase.findMany({
@@ -135,7 +135,7 @@ const generateSelectSingle = (
 			try {
 				const { offset, orderBy, where } = args;
 				const tableSelection = info.operation.selectionSet.selections.find(
-					(e) => e.kind === Kind.FIELD && e.name.value === queryName,
+					(e) => e.kind === Kind.FIELD && e.name.value === info.fieldName,
 				) as FieldNode;
 
 				const columns = extractSelectedColumnsFromNode(tableSelection, table);
