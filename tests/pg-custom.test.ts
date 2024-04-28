@@ -1,32 +1,14 @@
-import {
-	buildSchema,
-	type DeleteResolver,
-	type ExtractTables,
-	type GeneratedEntities,
-	type InsertArrResolver,
-	type InsertResolver,
-	type SelectResolver,
-	type SelectSingleResolver,
-	type UpdateResolver,
-} from '@/index';
+import { buildSchema, type GeneratedEntities } from '@/index';
 import Docker from 'dockerode';
-import { type Relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
-import {
-	GraphQLInputObjectType,
-	GraphQLList,
-	GraphQLNonNull,
-	GraphQLObjectType,
-	GraphQLScalarType,
-	GraphQLSchema,
-} from 'graphql';
+import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 import { createYoga } from 'graphql-yoga';
 import { createServer, type Server } from 'node:http';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
-import z from 'zod';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import * as schema from './schema/pg';
 import { GraphQLClient } from './util/query';
 
@@ -45,7 +27,7 @@ const ctx: Context = {} as any;
 
 async function createDockerDB(ctx: Context): Promise<string> {
 	const docker = (ctx.docker = new Docker());
-	const port = await getPort({ port: 5432 });
+	const port = await getPort({ port: 5433 });
 	const image = 'postgres:14';
 
 	const pullStream = await docker.pull(image);
@@ -56,7 +38,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const pgContainer = (ctx.pgContainer = await docker.createContainer({
 		Image: image,
 		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-graphql-pg-tests-${uuid()}`,
+		name: `drizzle-graphql-pg-custom-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
@@ -105,17 +87,50 @@ beforeAll(async () => {
 		logger: process.env['LOG_SQL'] ? true : false,
 	});
 
-	const { schema: gqlSchema, entities } = buildSchema(ctx.db);
+	const { entities } = buildSchema(ctx.db);
+
+	const customSchema = new GraphQLSchema({
+		query: new GraphQLObjectType({
+			name: 'Query',
+			fields: {
+				customUsersSingle: entities.queries.usersSingle,
+				customUsers: entities.queries.users,
+				customCustomersSingle: entities.queries.customersSingle,
+				customCustomers: entities.queries.customers,
+				customPostsSingle: entities.queries.postsSingle,
+				customPosts: entities.queries.posts,
+			},
+		}),
+		mutation: new GraphQLObjectType({
+			name: 'Mutation',
+			fields: {
+				deleteFromCustomUsers: entities.mutations.deleteFromUsers,
+				deleteFromCustomCustomers: entities.mutations.deleteFromCustomers,
+				deleteFromCustomPosts: entities.mutations.deleteFromPosts,
+				updateCustomUsers: entities.mutations.updateUsers,
+				updateCustomCustomers: entities.mutations.updateCustomers,
+				updateCustomPosts: entities.mutations.updatePosts,
+				insertIntoCustomUsers: entities.mutations.insertIntoUsers,
+				insertIntoCustomUsersSingle: entities.mutations.insertIntoUsersSingle,
+				insertIntoCustomCustomers: entities.mutations.insertIntoCustomers,
+				insertIntoCustomCustomersSingle: entities.mutations.insertIntoCustomersSingle,
+				insertIntoCustomPosts: entities.mutations.insertIntoPosts,
+				insertIntoCustomPostsSingle: entities.mutations.insertIntoPostsSingle,
+			},
+		}),
+		types: [...Object.values(entities.types), ...Object.values(entities.inputs)],
+	});
+
 	const yoga = createYoga({
-		schema: gqlSchema,
+		schema: customSchema,
 	});
 	const server = createServer(yoga);
 
-	const port = 4002;
+	const port = 5001;
 	server.listen(port);
 	const gql = new GraphQLClient(`http://localhost:${port}/graphql`);
 
-	ctx.schema = gqlSchema;
+	ctx.schema = customSchema;
 	ctx.entities = entities;
 	ctx.server = server;
 	ctx.gql = gql;
@@ -263,7 +278,7 @@ describe.sequential('Query tests', async () => {
 	it(`Select single`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				usersSingle {
+				customUsersSingle {
 					a
 					id
 					name
@@ -279,7 +294,7 @@ describe.sequential('Query tests', async () => {
 					isConfirmed
 				}
 
-				postsSingle {
+				customPostsSingle {
 					id
 					authorId
 					content
@@ -289,7 +304,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				usersSingle: {
+				customUsersSingle: {
 					a: [1, 5, 10, 25, 40],
 					id: 1,
 					name: 'FirstUser',
@@ -304,7 +319,7 @@ describe.sequential('Query tests', async () => {
 					initials: 'FU',
 					isConfirmed: true,
 				},
-				postsSingle: {
+				customPostsSingle: {
 					id: 1,
 					authorId: 1,
 					content: '1MESSAGE',
@@ -316,7 +331,7 @@ describe.sequential('Query tests', async () => {
 	it(`Select array`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				users {
+				customUsers {
 					a
 					id
 					name
@@ -332,7 +347,7 @@ describe.sequential('Query tests', async () => {
 					isConfirmed
 				}
 
-				posts {
+				customPosts {
 					id
 					authorId
 					content
@@ -342,7 +357,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				users: [
+				customUsers: [
 					{
 						a: [1, 5, 10, 25, 40],
 						id: 1,
@@ -389,7 +404,7 @@ describe.sequential('Query tests', async () => {
 						isConfirmed: null,
 					},
 				],
-				posts: [
+				customPosts: [
 					{
 						id: 1,
 						authorId: 1,
@@ -428,7 +443,7 @@ describe.sequential('Query tests', async () => {
 	it(`Select single with relations`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				usersSingle {
+				customUsersSingle {
 					a
 					id
 					name
@@ -449,7 +464,7 @@ describe.sequential('Query tests', async () => {
 					}
 				}
 
-				postsSingle {
+				customPostsSingle {
 					id
 					authorId
 					content
@@ -474,7 +489,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				usersSingle: {
+				customUsersSingle: {
 					a: [1, 5, 10, 25, 40],
 					id: 1,
 					name: 'FirstUser',
@@ -512,7 +527,7 @@ describe.sequential('Query tests', async () => {
 						},
 					],
 				},
-				postsSingle: {
+				customPostsSingle: {
 					id: 1,
 					authorId: 1,
 					content: '1MESSAGE',
@@ -539,7 +554,7 @@ describe.sequential('Query tests', async () => {
 	it(`Select array with relations`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				users {
+				customUsers {
 					a
 					id
 					name
@@ -560,7 +575,7 @@ describe.sequential('Query tests', async () => {
 					}
 				}
 
-				posts {
+				customPosts {
 					id
 					authorId
 					content
@@ -585,7 +600,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				users: [
+				customUsers: [
 					{
 						a: [1, 5, 10, 25, 40],
 						id: 1,
@@ -667,7 +682,7 @@ describe.sequential('Query tests', async () => {
 						],
 					},
 				],
-				posts: [
+				customPosts: [
 					{
 						id: 1,
 						authorId: 1,
@@ -796,7 +811,7 @@ describe.sequential('Query tests', async () => {
 	it(`Insert single`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
-				insertIntoUsersSingle(
+				insertIntoCustomUsersSingle(
 					values: {
 						a: [1, 5, 10, 25, 40]
 						id: 3
@@ -831,7 +846,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				insertIntoUsersSingle: {
+				insertIntoCustomUsersSingle: {
 					a: [1, 5, 10, 25, 40],
 					id: 3,
 					name: 'ThirdUser',
@@ -853,7 +868,7 @@ describe.sequential('Query tests', async () => {
 	it(`Insert array`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
-				insertIntoUsers(
+				insertIntoCustomUsers(
 					values: [
 						{
 							a: [1, 5, 10, 25, 40]
@@ -905,7 +920,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				insertIntoUsers: [
+				insertIntoCustomUsers: [
 					{
 						a: [1, 5, 10, 25, 40],
 						id: 3,
@@ -944,7 +959,7 @@ describe.sequential('Query tests', async () => {
 	it(`Update`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
-				updateCustomers(set: { isConfirmed: true, address: "Edited" }) {
+				updateCustomCustomers(set: { isConfirmed: true, address: "Edited" }) {
 					id
 					address
 					isConfirmed
@@ -956,7 +971,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				updateCustomers: [
+				updateCustomCustomers: [
 					{
 						id: 1,
 						address: 'Edited',
@@ -979,7 +994,7 @@ describe.sequential('Query tests', async () => {
 	it(`Delete`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
-				deleteFromCustomers {
+				deleteFromCustomCustomers {
 					id
 					address
 					isConfirmed
@@ -991,7 +1006,7 @@ describe.sequential('Query tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				deleteFromCustomers: [
+				deleteFromCustomCustomers: [
 					{
 						id: 1,
 						address: 'AdOne',
@@ -1016,7 +1031,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Order by', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				posts(
+				customPosts(
 					orderBy: { authorId: { priority: 1, direction: desc }, content: { priority: 0, direction: asc } }
 				) {
 					id
@@ -1028,7 +1043,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				posts: [
+				customPosts: [
 					{
 						id: 4,
 						authorId: 5,
@@ -1068,7 +1083,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Order by on single', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				postsSingle(
+				customPostsSingle(
 					orderBy: { authorId: { priority: 1, direction: desc }, content: { priority: 0, direction: asc } }
 				) {
 					id
@@ -1080,7 +1095,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				postsSingle: {
+				customPostsSingle: {
 					id: 4,
 					authorId: 5,
 					content: '1MESSAGE',
@@ -1092,7 +1107,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Offset & limit', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				posts(offset: 1, limit: 2) {
+				customPosts(offset: 1, limit: 2) {
 					id
 					authorId
 					content
@@ -1102,7 +1117,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				posts: [
+				customPosts: [
 					{
 						id: 2,
 						authorId: 1,
@@ -1121,7 +1136,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Offset on single', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				postsSingle(offset: 1) {
+				customPostsSingle(offset: 1) {
 					id
 					authorId
 					content
@@ -1131,7 +1146,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				postsSingle: {
+				customPostsSingle: {
 					id: 2,
 					authorId: 1,
 					content: '2MESSAGE',
@@ -1143,7 +1158,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Filters - top level AND', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				posts(where: { id: { inArray: [2, 3, 4, 5, 6] }, authorId: { ne: 5 }, content: { ne: "3MESSAGE" } }) {
+				customPosts(where: { id: { inArray: [2, 3, 4, 5, 6] }, authorId: { ne: 5 }, content: { ne: "3MESSAGE" } }) {
 					id
 					authorId
 					content
@@ -1153,7 +1168,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				posts: [
+				customPosts: [
 					{
 						id: 2,
 						authorId: 1,
@@ -1172,7 +1187,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Filters - top level OR', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				posts(where: { OR: [{ id: { lte: 3 } }, { authorId: { eq: 5 } }] }) {
+				customPosts(where: { OR: [{ id: { lte: 3 } }, { authorId: { eq: 5 } }] }) {
 					id
 					authorId
 					content
@@ -1182,7 +1197,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				posts: [
+				customPosts: [
 					{
 						id: 1,
 						authorId: 1,
@@ -1216,7 +1231,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Update filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
-				updatePosts(where: { OR: [{ id: { lte: 3 } }, { authorId: { eq: 5 } }] }, set: { content: "UPDATED" }) {
+				updateCustomPosts(where: { OR: [{ id: { lte: 3 } }, { authorId: { eq: 5 } }] }, set: { content: "UPDATED" }) {
 					id
 					authorId
 					content
@@ -1226,7 +1241,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				updatePosts: [
+				updateCustomPosts: [
 					{
 						id: 1,
 						authorId: 1,
@@ -1260,7 +1275,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Delete filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
-				deleteFromPosts(where: { OR: [{ id: { lte: 3 } }, { authorId: { eq: 5 } }] }) {
+				deleteFromCustomPosts(where: { OR: [{ id: { lte: 3 } }, { authorId: { eq: 5 } }] }) {
 					id
 					authorId
 					content
@@ -1270,7 +1285,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				deleteFromPosts: [
+				deleteFromCustomPosts: [
 					{
 						id: 1,
 						authorId: 1,
@@ -1304,7 +1319,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Relations orderBy', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				users {
+				customUsers {
 					id
 					posts(orderBy: { id: { priority: 1, direction: desc } }) {
 						id
@@ -1317,7 +1332,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				users: [
+				customUsers: [
 					{
 						id: 1,
 						posts: [
@@ -1370,7 +1385,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Relations offset & limit', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				users {
+				customUsers {
 					id
 					posts(offset: 1, limit: 2) {
 						id
@@ -1383,7 +1398,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				users: [
+				customUsers: [
 					{
 						id: 1,
 						posts: [
@@ -1421,7 +1436,7 @@ describe.sequential('Arguments tests', async () => {
 	it('Relations filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			{
-				users {
+				customUsers {
 					id
 					posts(where: { content: { ilike: "2%" } }) {
 						id
@@ -1434,7 +1449,7 @@ describe.sequential('Arguments tests', async () => {
 
 		expect(res).toStrictEqual({
 			data: {
-				users: [
+				customUsers: [
 					{
 						id: 1,
 						posts: [
@@ -1462,657 +1477,5 @@ describe.sequential('Arguments tests', async () => {
 				],
 			},
 		});
-	});
-});
-
-describe.sequential('Returned data tests', () => {
-	it('Schema', () => {
-		expect(ctx.schema instanceof GraphQLSchema).toBe(true);
-	});
-
-	it('Entities', () => {
-		ctx.entities.mutations;
-		const schema = z
-			.object({
-				queries: z
-					.object({
-						users: z
-							.object({
-								args: z
-									.object({
-										orderBy: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-										offset: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										limit: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						usersSingle: z
-							.object({
-								args: z
-									.object({
-										orderBy: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-										offset: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType),
-							})
-							.strict(),
-						posts: z
-							.object({
-								args: z
-									.object({
-										orderBy: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-										offset: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										limit: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						postsSingle: z
-							.object({
-								args: z
-									.object({
-										orderBy: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-										offset: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType),
-							})
-							.strict(),
-						customers: z
-							.object({
-								args: z
-									.object({
-										orderBy: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-										offset: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										limit: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						customersSingle: z
-							.object({
-								args: z
-									.object({
-										orderBy: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-										offset: z
-											.object({
-												type: z.instanceof(GraphQLScalarType),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType),
-							})
-							.strict(),
-					})
-					.strict(),
-				mutations: z
-					.object({
-						insertIntoUsers: z
-							.object({
-								args: z
-									.object({
-										values: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						insertIntoUsersSingle: z
-							.object({
-								args: z
-									.object({
-										values: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType),
-							})
-							.strict(),
-						updateUsers: z
-							.object({
-								args: z
-									.object({
-										set: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						deleteFromUsers: z
-							.object({
-								args: z
-									.object({
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						insertIntoPosts: z
-							.object({
-								args: z
-									.object({
-										values: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						insertIntoPostsSingle: z
-							.object({
-								args: z
-									.object({
-										values: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType),
-							})
-							.strict(),
-						updatePosts: z
-							.object({
-								args: z
-									.object({
-										set: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						deleteFromPosts: z
-							.object({
-								args: z
-									.object({
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						insertIntoCustomers: z
-							.object({
-								args: z
-									.object({
-										values: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						insertIntoCustomersSingle: z
-							.object({
-								args: z
-									.object({
-										values: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLObjectType),
-							})
-							.strict(),
-						updateCustomers: z
-							.object({
-								args: z
-									.object({
-										set: z
-											.object({
-												type: z.instanceof(GraphQLNonNull),
-											})
-											.strict(),
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-						deleteFromCustomers: z
-							.object({
-								args: z
-									.object({
-										where: z
-											.object({
-												type: z.instanceof(GraphQLInputObjectType),
-											})
-											.strict(),
-									})
-									.strict(),
-								resolve: z.function(),
-								type: z.instanceof(GraphQLNonNull),
-							})
-							.strict(),
-					})
-					.strict(),
-				types: z
-					.object({
-						UsersItem: z.instanceof(GraphQLObjectType),
-						UsersSelectItem: z.instanceof(GraphQLObjectType),
-						PostsItem: z.instanceof(GraphQLObjectType),
-						PostsSelectItem: z.instanceof(GraphQLObjectType),
-						CustomersItem: z.instanceof(GraphQLObjectType),
-						CustomersSelectItem: z.instanceof(GraphQLObjectType),
-					})
-					.strict(),
-				inputs: z
-					.object({
-						UsersFilters: z.instanceof(GraphQLInputObjectType),
-						UsersOrderBy: z.instanceof(GraphQLInputObjectType),
-						UsersInsertInput: z.instanceof(GraphQLInputObjectType),
-						UsersUpdateInput: z.instanceof(GraphQLInputObjectType),
-						PostsFilters: z.instanceof(GraphQLInputObjectType),
-						PostsOrderBy: z.instanceof(GraphQLInputObjectType),
-						PostsInsertInput: z.instanceof(GraphQLInputObjectType),
-						PostsUpdateInput: z.instanceof(GraphQLInputObjectType),
-						CustomersFilters: z.instanceof(GraphQLInputObjectType),
-						CustomersOrderBy: z.instanceof(GraphQLInputObjectType),
-						CustomersInsertInput: z.instanceof(GraphQLInputObjectType),
-						CustomersUpdateInput: z.instanceof(GraphQLInputObjectType),
-					})
-					.strict(),
-			})
-			.strict();
-
-		const parseRes = schema.safeParse(ctx.entities);
-
-		if (!parseRes.success) console.log(parseRes.error);
-
-		expect(parseRes.success).toEqual(true);
-	});
-});
-
-describe.sequential('Type tests', () => {
-	it('Schema', () => {
-		expectTypeOf(ctx.schema).toEqualTypeOf<GraphQLSchema>();
-	});
-
-	it('Queries', () => {
-		expectTypeOf(ctx.entities.queries).toEqualTypeOf<
-			{
-				readonly customers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						orderBy: { type: GraphQLInputObjectType };
-						offset: { type: GraphQLScalarType<number, number> };
-						limit: { type: GraphQLScalarType<number, number> };
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: SelectResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>;
-				};
-				readonly posts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						orderBy: { type: GraphQLInputObjectType };
-						offset: { type: GraphQLScalarType<number, number> };
-						limit: { type: GraphQLScalarType<number, number> };
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: SelectResolver<
-						typeof schema.Posts,
-						ExtractTables<typeof schema>,
-						typeof schema.postsRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>;
-				};
-				readonly users: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						orderBy: { type: GraphQLInputObjectType };
-						offset: { type: GraphQLScalarType<number, number> };
-						limit: { type: GraphQLScalarType<number, number> };
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: SelectResolver<
-						typeof schema.Users,
-						ExtractTables<typeof schema>,
-						typeof schema.usersRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>;
-				};
-			} & {
-				readonly customersSingle: {
-					type: GraphQLObjectType;
-					args: {
-						orderBy: { type: GraphQLInputObjectType };
-						offset: { type: GraphQLScalarType<number, number> };
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: SelectSingleResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>;
-				};
-				readonly postsSingle: {
-					type: GraphQLObjectType;
-					args: {
-						orderBy: { type: GraphQLInputObjectType };
-						offset: { type: GraphQLScalarType<number, number> };
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: SelectSingleResolver<
-						typeof schema.Posts,
-						ExtractTables<typeof schema>,
-						typeof schema.postsRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>;
-				};
-				readonly usersSingle: {
-					type: GraphQLObjectType;
-					args: {
-						orderBy: { type: GraphQLInputObjectType };
-						offset: { type: GraphQLScalarType<number, number> };
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: SelectSingleResolver<
-						typeof schema.Users,
-						ExtractTables<typeof schema>,
-						typeof schema.usersRelations extends Relations<any, infer RelConf> ? RelConf : never
-					>;
-				};
-			}
-		>();
-	});
-
-	it('Mutations', () => {
-		expectTypeOf(ctx.entities.mutations).toEqualTypeOf<
-			{
-				readonly insertIntoCustomers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						values: {
-							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>;
-						};
-					};
-					resolve: InsertArrResolver<typeof schema.Customers, false>;
-				};
-				readonly insertIntoPosts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						values: {
-							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>;
-						};
-					};
-					resolve: InsertArrResolver<typeof schema.Posts, false>;
-				};
-				readonly insertIntoUsers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						values: {
-							type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLInputObjectType>>>;
-						};
-					};
-					resolve: InsertArrResolver<typeof schema.Users, false>;
-				};
-			} & {
-				readonly insertIntoCustomersSingle: {
-					type: GraphQLObjectType;
-					args: {
-						values: {
-							type: GraphQLNonNull<GraphQLInputObjectType>;
-						};
-					};
-					resolve: InsertResolver<typeof schema.Customers, false>;
-				};
-				readonly insertIntoPostsSingle: {
-					type: GraphQLObjectType;
-					args: {
-						values: {
-							type: GraphQLNonNull<GraphQLInputObjectType>;
-						};
-					};
-					resolve: InsertResolver<typeof schema.Posts, false>;
-				};
-				readonly insertIntoUsersSingle: {
-					type: GraphQLObjectType;
-					args: {
-						values: {
-							type: GraphQLNonNull<GraphQLInputObjectType>;
-						};
-					};
-					resolve: InsertResolver<typeof schema.Users, false>;
-				};
-			} & {
-				readonly updateCustomers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						set: {
-							type: GraphQLNonNull<GraphQLInputObjectType>;
-						};
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: UpdateResolver<typeof schema.Customers, false>;
-				};
-				readonly updatePosts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						set: {
-							type: GraphQLNonNull<GraphQLInputObjectType>;
-						};
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: UpdateResolver<typeof schema.Posts, false>;
-				};
-				readonly updateUsers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						set: {
-							type: GraphQLNonNull<GraphQLInputObjectType>;
-						};
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: UpdateResolver<typeof schema.Users, false>;
-				};
-			} & {
-				readonly deleteFromCustomers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: DeleteResolver<typeof schema.Customers, false>;
-				};
-				readonly deleteFromPosts: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: DeleteResolver<typeof schema.Posts, false>;
-				};
-				readonly deleteFromUsers: {
-					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
-					args: {
-						where: { type: GraphQLInputObjectType };
-					};
-					resolve: DeleteResolver<typeof schema.Users, false>;
-				};
-			}
-		>();
-	});
-
-	it('Types', () => {
-		expectTypeOf(ctx.entities.types).toEqualTypeOf<
-			{
-				readonly CustomersItem: GraphQLObjectType;
-				readonly PostsItem: GraphQLObjectType;
-				readonly UsersItem: GraphQLObjectType;
-			} & {
-				readonly CustomersSelectItem: GraphQLObjectType;
-				readonly PostsSelectItem: GraphQLObjectType;
-				readonly UsersSelectItem: GraphQLObjectType;
-			}
-		>();
-	});
-
-	it('Inputs', () => {
-		expectTypeOf(ctx.entities.inputs).toEqualTypeOf<
-			{
-				readonly UsersFilters: GraphQLInputObjectType;
-				readonly CustomersFilters: GraphQLInputObjectType;
-				readonly PostsFilters: GraphQLInputObjectType;
-			} & {
-				readonly UsersOrderBy: GraphQLInputObjectType;
-				readonly CustomersOrderBy: GraphQLInputObjectType;
-				readonly PostsOrderBy: GraphQLInputObjectType;
-			} & {
-				readonly UsersInsertInput: GraphQLInputObjectType;
-				readonly CustomersInsertInput: GraphQLInputObjectType;
-				readonly PostsInsertInput: GraphQLInputObjectType;
-			} & {
-				readonly UsersUpdateInput: GraphQLInputObjectType;
-				readonly CustomersUpdateInput: GraphQLInputObjectType;
-				readonly PostsUpdateInput: GraphQLInputObjectType;
-			}
-		>();
 	});
 });

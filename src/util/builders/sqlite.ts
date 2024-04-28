@@ -185,7 +185,7 @@ const generateInsertArray = (
 				const input = remapFromGraphQLArrayInput(args.values, table);
 				if (!input.length) throw new GraphQLError('No values were provided!');
 
-				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>;
+				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, SQLiteColumn>;
 
 				const result = await db
 					.insert(table)
@@ -226,7 +226,7 @@ const generateInsertSingle = (
 			try {
 				const input = remapFromGraphQLSingleInput(args.values, table);
 
-				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>;
+				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, SQLiteColumn>;
 
 				const result = await db.insert(table).values(input).returning(columns).onConflictDoNothing();
 
@@ -269,7 +269,7 @@ const generateUpdate = (
 			try {
 				const { where, set } = args;
 
-				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>;
+				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, SQLiteColumn>;
 				const input = remapFromGraphQLSingleInput(set, table);
 				if (!Object.keys(input).length) throw new GraphQLError('Unable to update with no values specified!');
 
@@ -316,7 +316,7 @@ const generateDelete = (
 			try {
 				const { where } = args;
 
-				const columns = extractSelectedColumnsSQLFormat(info, queryName, table) as Record<string, SQLiteColumn>;
+				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, SQLiteColumn>;
 
 				let query = db.delete(table);
 				if (where) {
