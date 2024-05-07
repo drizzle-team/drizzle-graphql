@@ -65,7 +65,7 @@ export const extractSelectedColumns = (info: GraphQLResolveInfo, queryName: stri
 
 	const selectedColumns: SelectedColumnsRaw = [];
 	for (const columnSelection of tableSelection.selectionSet.selections) {
-		if (columnSelection.kind !== Kind.FIELD) continue;
+		if (columnSelection.kind !== Kind.FIELD || columnSelection.name.value === '__typename') continue;
 
 		selectedColumns.push([columnSelection.name.value, true]);
 	}
@@ -101,7 +101,7 @@ export const extractSelectedColumnsSQLFormat = <TTable extends Table>(
 	if (!tableSelection || !tableSelection.selectionSet) throw new GraphQLError('Received empty column selection!');
 
 	for (const columnSelection of tableSelection.selectionSet.selections) {
-		if (columnSelection.kind !== Kind.FIELD) continue;
+		if (columnSelection.kind !== Kind.FIELD || columnSelection.name.value === '__typename') continue;
 
 		selectedColumns.push([columnSelection.name.value, table[columnSelection.name.value as keyof Table] as Column]);
 	}
