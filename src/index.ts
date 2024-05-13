@@ -9,6 +9,11 @@ import type { AnyDrizzleDB, GeneratedData } from './types';
 
 export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient): GeneratedData<TDbClient> => {
 	const schema = db._.fullSchema;
+	if (!schema) {
+		throw new Error(
+			"Schema not found in drizzle instance. Make sure you're using drizzle-orm v0.30.9 or above and schema is passed to drizzle constructor!",
+		);
+	}
 
 	let generatorOutput;
 	if (is(db, MySqlDatabase)) {
