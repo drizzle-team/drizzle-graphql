@@ -8,6 +8,8 @@ dist-dts
 dist.new
 server
 runMysql.ts
+runMysql-old.ts
+runPg.ts
 Tests/.temp
 Tests/Migrations
 .DS_Store

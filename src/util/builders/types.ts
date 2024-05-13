@@ -57,7 +57,9 @@ export type ColTypeIsNullOrUndefinedWithDefault<TColumn extends Column, TColType
 
 export type GetColumnGqlDataType<TColumn extends Column> = TColumn['dataType'] extends 'boolean'
 	? ColTypeIsNull<TColumn, boolean>
-	: TColumn['dataType'] extends 'json' | 'date' | 'string' | 'bigint' ? ColTypeIsNull<TColumn, string>
+	: TColumn['dataType'] extends 'json' | 'date' | 'string' | 'bigint'
+		? TColumn['enumValues'] extends [string, ...string[]] ? ColTypeIsNull<TColumn, TColumn['enumValues'][number]>
+		: ColTypeIsNull<TColumn, string>
 	: TColumn['dataType'] extends 'number' ? ColTypeIsNull<TColumn, number>
 	: TColumn['dataType'] extends 'buffer' ? ColTypeIsNull<TColumn, number[]>
 	: TColumn extends PgArray<any, any> ? ColTypeIsNull<
@@ -74,7 +76,9 @@ export type GetColumnGqlDataType<TColumn extends Column> = TColumn['dataType'] e
 export type GetColumnGqlInsertDataType<TColumn extends Column> = TColumn['dataType'] extends 'boolean'
 	? ColTypeIsNullOrUndefinedWithDefault<TColumn, boolean>
 	: TColumn['dataType'] extends 'json' | 'date' | 'string' | 'bigint'
-		? ColTypeIsNullOrUndefinedWithDefault<TColumn, string>
+		? TColumn['enumValues'] extends [string, ...string[]]
+			? ColTypeIsNullOrUndefinedWithDefault<TColumn, TColumn['enumValues'][number]>
+		: ColTypeIsNullOrUndefinedWithDefault<TColumn, string>
 	: TColumn['dataType'] extends 'number' ? ColTypeIsNullOrUndefinedWithDefault<TColumn, number>
 	: TColumn['dataType'] extends 'buffer' ? ColTypeIsNullOrUndefinedWithDefault<TColumn, number[]>
 	: TColumn extends PgArray<any, any> ? ColTypeIsNullOrUndefinedWithDefault<
@@ -90,7 +94,9 @@ export type GetColumnGqlInsertDataType<TColumn extends Column> = TColumn['dataTy
 
 export type GetColumnGqlUpdateDataType<TColumn extends Column> = TColumn['dataType'] extends 'boolean'
 	? boolean | null | undefined
-	: TColumn['dataType'] extends 'json' | 'date' | 'string' | 'bigint' ? string | null | undefined
+	: TColumn['dataType'] extends 'json' | 'date' | 'string' | 'bigint'
+		? TColumn['enumValues'] extends [string, ...string[]] ? TColumn['enumValues'][number] | null | undefined
+		: string | null | undefined
 	: TColumn['dataType'] extends 'number' ? number | null | undefined
 	: TColumn['dataType'] extends 'buffer' ? number[] | null | undefined
 	: TColumn extends PgArray<any, any> ? 

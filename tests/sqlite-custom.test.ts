@@ -756,7 +756,7 @@ describe.sequential('Query tests', async () => {
 						createdAtMs: "2024-04-02T06:44:41.785Z"
 						real: 13.5
 						text: "sometext"
-						role: "admin"
+						role: admin
 						isConfirmed: true
 					}
 				) {
@@ -812,7 +812,7 @@ describe.sequential('Query tests', async () => {
 							createdAtMs: "2024-04-02T06:44:41.785Z"
 							real: 13.5
 							text: "sometext"
-							role: "admin"
+							role: admin
 							isConfirmed: true
 						}
 						{
@@ -826,7 +826,7 @@ describe.sequential('Query tests', async () => {
 							createdAtMs: "2024-04-02T06:44:41.785Z"
 							real: 13.5
 							text: "sometext"
-							role: "user"
+							role: user
 							isConfirmed: false
 						}
 					]

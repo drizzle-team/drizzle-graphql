@@ -135,7 +135,7 @@ export const innerOrder = new GraphQLInputObjectType({
 });
 
 const generateColumnFilterValues = (column: Column, tableName: string, columnName: string): GraphQLInputObjectType => {
-	const columnGraphQLType = drizzleColumnToGraphQLType(column, true);
+	const columnGraphQLType = drizzleColumnToGraphQLType(column, columnName, tableName, true);
 	const columnArr = new GraphQLList(new GraphQLNonNull(columnGraphQLType.type));
 
 	const baseFields = {
@@ -201,7 +201,7 @@ const generateTableFilterValuesCached = (table: Table, tableName: string) => {
 };
 
 const fieldMap = new WeakMap<Record<string, ConvertedColumn>>();
-const generateTableSelectTypeFieldsCached = (table: Table): Record<string, ConvertedColumn> => {
+const generateTableSelectTypeFieldsCached = (table: Table, tableName: string): Record<string, ConvertedColumn> => {
 	// @ts-expect-error - mapping to object's address
 	if (fieldMap.has(table)) return fieldMap.get(table);
 
@@ -211,7 +211,7 @@ const generateTableSelectTypeFieldsCached = (table: Table): Record<string, Conve
 	const remapped = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
 			columnName,
-			drizzleColumnToGraphQLType(columnDescription),
+			drizzleColumnToGraphQLType(columnDescription, columnName, tableName),
 		]),
 	);
 
@@ -237,7 +237,11 @@ export const generateTableTypes = <
 			const relTableFields = Object.fromEntries(
 				Object.entries(getTableColumns(relValue.referencedTable)).map(([columnName, columnDescription]) => [
 					columnName,
-					drizzleColumnToGraphQLType(columnDescription),
+					drizzleColumnToGraphQLType(
+						columnDescription,
+						`${pascalize(tableName)}${pascalize(relName)}Relation`,
+						columnName,
+					),
 				]),
 			);
 
@@ -301,7 +305,7 @@ export const generateTableTypes = <
 		}),
 	);
 
-	const tableFields = generateTableSelectTypeFieldsCached(table);
+	const tableFields = generateTableSelectTypeFieldsCached(table, tableName);
 
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -309,14 +313,14 @@ export const generateTableTypes = <
 	const insertFields = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
 			columnName,
-			drizzleColumnToGraphQLType(columnDescription, false, true),
+			drizzleColumnToGraphQLType(columnDescription, columnName, tableName, false, true),
 		]),
 	);
 
 	const updateFields = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
 			columnName,
-			drizzleColumnToGraphQLType(columnDescription, true),
+			drizzleColumnToGraphQLType(columnDescription, columnName, tableName, true),
 		]),
 	);
 

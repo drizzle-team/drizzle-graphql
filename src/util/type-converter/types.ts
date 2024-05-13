@@ -1,9 +1,11 @@
-import type { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLScalarType } from 'graphql';
+import type { GraphQLEnumType, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLScalarType } from 'graphql';
 
 export type ConvertedColumn = {
 	type:
 		| GraphQLScalarType
+		| GraphQLEnumType
 		| GraphQLNonNull<GraphQLScalarType>
+		| GraphQLNonNull<GraphQLEnumType>
 		| GraphQLList<GraphQLScalarType>
 		| GraphQLList<GraphQLNonNull<GraphQLScalarType>>
 		| GraphQLNonNull<GraphQLList<GraphQLScalarType>>

@@ -808,7 +808,7 @@ describe.sequential('Query tests', async () => {
 						birthdayString: "2024-04-02"
 						birthdayDate: "2024-04-02T06:44:41.785Z"
 						createdAt: "2024-04-02T06:44:41.785Z"
-						role: "admin"
+						role: admin
 						roleText: null
 						profession: "ThirdUserProf"
 						initials: "FU"
@@ -862,7 +862,7 @@ describe.sequential('Query tests', async () => {
 							birthdayString: "2024-04-02"
 							birthdayDate: "2024-04-02T06:44:41.785Z"
 							createdAt: "2024-04-02T06:44:41.785Z"
-							role: "admin"
+							role: admin
 							roleText: null
 							profession: "ThirdUserProf"
 							initials: "FU"
@@ -876,9 +876,9 @@ describe.sequential('Query tests', async () => {
 							birthdayString: "2024-04-04"
 							birthdayDate: "2024-04-04T00:00:00.000Z"
 							createdAt: "2024-04-04T06:44:41.785Z"
-							role: "user"
+							role: user
 							roleText: null
-							roleText2: "user"
+							roleText2: user
 							profession: "FourthUserProf"
 							initials: "SU"
 							isConfirmed: false
