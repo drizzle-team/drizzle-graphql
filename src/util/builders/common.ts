@@ -57,22 +57,6 @@ import type {
 	TableSelectArgs,
 } from './types';
 
-export const extractSelectedColumns = (info: GraphQLResolveInfo, queryName: string): Record<string, true> => {
-	const tableSelection = info.operation.selectionSet.selections.find(
-		(e) => e.kind === Kind.FIELD && e.name.value === queryName,
-	) as FieldNode | undefined;
-	if (!tableSelection || !tableSelection.selectionSet) return {};
-
-	const selectedColumns: SelectedColumnsRaw = [];
-	for (const columnSelection of tableSelection.selectionSet.selections) {
-		if (columnSelection.kind !== Kind.FIELD || columnSelection.name.value === '__typename') continue;
-
-		selectedColumns.push([columnSelection.name.value, true]);
-	}
-
-	return Object.fromEntries(selectedColumns);
-};
-
 export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): Record<string, true> => {
 	if (!info.selectionSet) return {};
 
@@ -82,6 +66,12 @@ export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): R
 		if (columnSelection.kind !== Kind.FIELD || !tableColumns[columnSelection.name.value]) continue;
 
 		selectedColumns.push([columnSelection.name.value, true]);
+	}
+
+	if (!selectedColumns.length) {
+		const columnKeys = Object.keys(tableColumns);
+
+		selectedColumns.push([columnKeys[0]!, true]);
 	}
 
 	return Object.fromEntries(selectedColumns);
@@ -104,6 +94,12 @@ export const extractSelectedColumnsSQLFormat = <TTable extends Table>(
 		if (columnSelection.kind !== Kind.FIELD || columnSelection.name.value === '__typename') continue;
 
 		selectedColumns.push([columnSelection.name.value, table[columnSelection.name.value as keyof Table] as Column]);
+	}
+
+	if (!selectedColumns.length) {
+		const columnKeys = Object.entries(getTableColumns(table));
+
+		selectedColumns.push([columnKeys[0]![0], columnKeys[0]![1]]);
 	}
 
 	return Object.fromEntries(selectedColumns) as any;
@@ -584,7 +580,8 @@ export const extractRelationsParams = (
 		if (!node) continue;
 
 		const refTable = relValue.referencedTable;
-		const columns = extractSelectedColumnsFromNode(node, refTable);
+		const extractedColumns = extractSelectedColumnsFromNode(node, refTable);
+		const columns = Object.keys(extractedColumns).length ? extractedColumns : undefined;
 
 		const relationArgs: Partial<TableSelectArgs> | undefined = (
 			Object.values(baseField).find((e) => (e as any).name === relName) as any

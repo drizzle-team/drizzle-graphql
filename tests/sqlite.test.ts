@@ -2042,3 +2042,1151 @@ describe.sequential('Type tests', () => {
 		>();
 	});
 });
+
+describe.sequential('__typename only tests', () => {
+	it(`Select single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					__typename
+				}
+
+				postsSingle {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					__typename: 'UsersSelectItem',
+				},
+				postsSingle: {
+					__typename: 'PostsSelectItem',
+				},
+			},
+		});
+	});
+
+	it(`Select array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					__typename
+				}
+
+				posts {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						__typename: 'UsersSelectItem',
+					},
+					{
+						__typename: 'UsersSelectItem',
+					},
+					{
+						__typename: 'UsersSelectItem',
+					},
+				],
+				posts: [
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					__typename
+					posts {
+						__typename
+					}
+				}
+
+				postsSingle {
+					__typename
+					author {
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					__typename: 'UsersSelectItem',
+					posts: [
+						{
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							__typename: 'UsersPostsRelation',
+						},
+
+						{
+							__typename: 'UsersPostsRelation',
+						},
+					],
+				},
+				postsSingle: {
+					__typename: 'PostsSelectItem',
+					author: {
+						__typename: 'PostsAuthorRelation',
+					},
+				},
+			},
+		});
+	});
+
+	it(`Select array with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					__typename
+					posts {
+						__typename
+					}
+				}
+				posts {
+					__typename
+					author {
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+					{
+						__typename: 'UsersSelectItem',
+						posts: [],
+					},
+					{
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+				],
+				posts: [
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it(`Insert single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsersSingle(
+					values: {
+						id: 3
+						name: "ThirdUser"
+						email: "userThree@notmail.com"
+						textJson: "{ \\"field\\": \\"value\\" }"
+						blobBigInt: "10"
+						numeric: "250.2"
+						createdAt: "2024-04-02T06:44:41.785Z"
+						createdAtMs: "2024-04-02T06:44:41.785Z"
+						real: 13.5
+						text: "sometext"
+						role: admin
+						isConfirmed: true
+					}
+				) {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsersSingle: {
+					__typename: 'UsersItem',
+				},
+			},
+		});
+	});
+
+	it(`Insert array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsers(
+					values: [
+						{
+							id: 3
+							name: "ThirdUser"
+							email: "userThree@notmail.com"
+							textJson: "{ \\"field\\": \\"value\\" }"
+							blobBigInt: "10"
+							numeric: "250.2"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							createdAtMs: "2024-04-02T06:44:41.785Z"
+							real: 13.5
+							text: "sometext"
+							role: admin
+							isConfirmed: true
+						}
+						{
+							id: 4
+							name: "FourthUser"
+							email: "userFour@notmail.com"
+							textJson: "{ \\"field\\": \\"value\\" }"
+							blobBigInt: "10"
+							numeric: "250.2"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							createdAtMs: "2024-04-02T06:44:41.785Z"
+							real: 13.5
+							text: "sometext"
+							role: user
+							isConfirmed: false
+						}
+					]
+				) {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsers: [
+					{
+						__typename: 'UsersItem',
+					},
+					{
+						__typename: 'UsersItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Update`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				updateCustomers(set: { isConfirmed: true, address: "Edited" }) {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				updateCustomers: [
+					{
+						__typename: 'CustomersItem',
+					},
+					{
+						__typename: 'CustomersItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Delete`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				deleteFromCustomers {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				deleteFromCustomers: [
+					{
+						__typename: 'CustomersItem',
+					},
+					{
+						__typename: 'CustomersItem',
+					},
+				],
+			},
+		});
+	});
+});
+
+describe.sequential('__typename with data tests', async () => {
+	it(`Select single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					id
+					name
+					email
+					textJson
+					blobBigInt
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+					__typename
+				}
+
+				postsSingle {
+					id
+					authorId
+					content
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
+					role: 'admin',
+					isConfirmed: true,
+					__typename: 'UsersSelectItem',
+				},
+				postsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+					__typename: 'PostsSelectItem',
+				},
+			},
+		});
+	});
+
+	it(`Select array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					id
+					name
+					email
+					textJson
+					blobBigInt
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+					__typename
+				}
+
+				posts {
+					id
+					authorId
+					content
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+						__typename: 'UsersSelectItem',
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						blobBigInt: null,
+						textJson: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						numeric: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
+						__typename: 'UsersSelectItem',
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						role: 'user',
+						blobBigInt: null,
+						textJson: null,
+						createdAtMs: null,
+						numeric: null,
+						real: null,
+						text: null,
+						isConfirmed: null,
+						__typename: 'UsersSelectItem',
+					},
+				],
+				posts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					id
+					name
+					email
+					textJson
+					blobBigInt
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+					__typename
+					posts {
+						id
+						authorId
+						content
+						__typename
+					}
+				}
+
+				postsSingle {
+					id
+					authorId
+					content
+					__typename
+					author {
+						id
+						name
+						email
+						textJson
+						numeric
+						createdAt
+						createdAtMs
+						real
+						text
+						role
+						isConfirmed
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
+					role: 'admin',
+					isConfirmed: true,
+					__typename: 'UsersSelectItem',
+					posts: [
+						{
+							id: 1,
+							authorId: 1,
+							content: '1MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							id: 2,
+							authorId: 1,
+							content: '2MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							id: 3,
+							authorId: 1,
+							content: '3MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+
+						{
+							id: 6,
+							authorId: 1,
+							content: '4MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+					],
+				},
+				postsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+					__typename: 'PostsSelectItem',
+					author: {
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						textJson: '{"field":"value"}',
+						// RQB can't handle blobs in JSON, for now
+						// blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+						__typename: 'PostsAuthorRelation',
+					},
+				},
+			},
+		});
+	});
+
+	it(`Select array with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					id
+					name
+					email
+					textJson
+					blobBigInt
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+					__typename
+					posts {
+						id
+						authorId
+						content
+						__typename
+					}
+				}
+
+				posts {
+					id
+					authorId
+					content
+					__typename
+					author {
+						id
+						name
+						email
+						textJson
+						numeric
+						createdAt
+						createdAtMs
+						real
+						text
+						role
+						isConfirmed
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								id: 1,
+								authorId: 1,
+								content: '1MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 2,
+								authorId: 1,
+								content: '2MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 3,
+								authorId: 1,
+								content: '3MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 6,
+								authorId: 1,
+								content: '4MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						textJson: null,
+						blobBigInt: null,
+						numeric: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
+						posts: [],
+						__typename: 'UsersSelectItem',
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						textJson: null,
+						blobBigInt: null,
+						numeric: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
+						posts: [
+							{
+								id: 4,
+								authorId: 5,
+								content: '1MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 5,
+								authorId: 5,
+								content: '2MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+						],
+						__typename: 'UsersSelectItem',
+					},
+				],
+				posts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							textJson: null,
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: null,
+							numeric: null,
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: null,
+							real: null,
+							text: null,
+							role: 'user',
+							isConfirmed: null,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							textJson: null,
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: null,
+							numeric: null,
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: null,
+							real: null,
+							text: null,
+							role: 'user',
+							isConfirmed: null,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it(`Insert single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsersSingle(
+					values: {
+						id: 3
+						name: "ThirdUser"
+						email: "userThree@notmail.com"
+						textJson: "{ \\"field\\": \\"value\\" }"
+						blobBigInt: "10"
+						numeric: "250.2"
+						createdAt: "2024-04-02T06:44:41.785Z"
+						createdAtMs: "2024-04-02T06:44:41.785Z"
+						real: 13.5
+						text: "sometext"
+						role: admin
+						isConfirmed: true
+					}
+				) {
+					id
+					name
+					email
+					textJson
+					blobBigInt
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsersSingle: {
+					id: 3,
+					name: 'ThirdUser',
+					email: 'userThree@notmail.com',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
+					role: 'admin',
+					isConfirmed: true,
+					__typename: 'UsersItem',
+				},
+			},
+		});
+	});
+
+	it(`Insert array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsers(
+					values: [
+						{
+							id: 3
+							name: "ThirdUser"
+							email: "userThree@notmail.com"
+							textJson: "{ \\"field\\": \\"value\\" }"
+							blobBigInt: "10"
+							numeric: "250.2"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							createdAtMs: "2024-04-02T06:44:41.785Z"
+							real: 13.5
+							text: "sometext"
+							role: admin
+							isConfirmed: true
+						}
+						{
+							id: 4
+							name: "FourthUser"
+							email: "userFour@notmail.com"
+							textJson: "{ \\"field\\": \\"value\\" }"
+							blobBigInt: "10"
+							numeric: "250.2"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							createdAtMs: "2024-04-02T06:44:41.785Z"
+							real: 13.5
+							text: "sometext"
+							role: user
+							isConfirmed: false
+						}
+					]
+				) {
+					id
+					name
+					email
+					textJson
+					blobBigInt
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsers: [
+					{
+						id: 3,
+						name: 'ThirdUser',
+						email: 'userThree@notmail.com',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+						__typename: 'UsersItem',
+					},
+					{
+						id: 4,
+						name: 'FourthUser',
+						email: 'userFour@notmail.com',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'user',
+						isConfirmed: false,
+						__typename: 'UsersItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Update`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				updateCustomers(set: { isConfirmed: true, address: "Edited" }) {
+					id
+					address
+					isConfirmed
+					registrationDate
+					userId
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				updateCustomers: [
+					{
+						id: 1,
+						address: 'Edited',
+						isConfirmed: true,
+						registrationDate: '2024-03-27T03:54:45.235Z',
+						userId: 1,
+						__typename: 'CustomersItem',
+					},
+					{
+						id: 2,
+						address: 'Edited',
+						isConfirmed: true,
+						registrationDate: '2024-03-27T03:55:42.358Z',
+						userId: 2,
+						__typename: 'CustomersItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Delete`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				deleteFromCustomers {
+					id
+					address
+					isConfirmed
+					registrationDate
+					userId
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				deleteFromCustomers: [
+					{
+						id: 1,
+						address: 'AdOne',
+						isConfirmed: false,
+						registrationDate: '2024-03-27T03:54:45.235Z',
+						userId: 1,
+						__typename: 'CustomersItem',
+					},
+					{
+						id: 2,
+						address: 'AdTwo',
+						isConfirmed: false,
+						registrationDate: '2024-03-27T03:55:42.358Z',
+						userId: 2,
+						__typename: 'CustomersItem',
+					},
+				],
+			},
+		});
+	});
+});

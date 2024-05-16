@@ -2086,3 +2086,1218 @@ describe.sequential('Type tests', () => {
 		>();
 	});
 });
+
+describe.sequential('__typename only tests', async () => {
+	it(`Select single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					__typename
+				}
+
+				postsSingle {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					__typename: 'UsersSelectItem',
+				},
+				postsSingle: {
+					__typename: 'PostsSelectItem',
+				},
+			},
+		});
+	});
+
+	it(`Select array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					__typename
+				}
+
+				posts {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						__typename: 'UsersSelectItem',
+					},
+					{
+						__typename: 'UsersSelectItem',
+					},
+					{
+						__typename: 'UsersSelectItem',
+					},
+				],
+				posts: [
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+					{
+						__typename: 'PostsSelectItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					__typename
+					posts {
+						__typename
+					}
+				}
+
+				postsSingle {
+					__typename
+					author {
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					__typename: 'UsersSelectItem',
+					posts: [
+						{
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							__typename: 'UsersPostsRelation',
+						},
+					],
+				},
+				postsSingle: {
+					__typename: 'PostsSelectItem',
+					author: {
+						__typename: 'PostsAuthorRelation',
+					},
+				},
+			},
+		});
+	});
+
+	it(`Select array with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					__typename
+					posts {
+						__typename
+					}
+				}
+
+				posts {
+					__typename
+					author {
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+					{
+						__typename: 'UsersSelectItem',
+						posts: [],
+					},
+					{
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+				],
+				posts: [
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						__typename: 'PostsSelectItem',
+						author: {
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it(`Insert single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsersSingle(
+					values: {
+						id: 3
+						name: "ThirdUser"
+						email: "userThree@notmail.com"
+						bigint: "15"
+						birthdayString: "2024-04-02"
+						birthdayDate: "2024-04-02T06:44:41.785Z"
+						createdAt: "2024-04-02T06:44:41.785Z"
+						role: admin
+						roleText: null
+						profession: "ThirdUserProf"
+						initials: "FU"
+						isConfirmed: true
+					}
+				) {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsersSingle: {
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db.select().from(schema.Users).where(eq(schema.Users.id, 3));
+
+		expect(data).toStrictEqual([
+			{
+				id: 3,
+				name: 'ThirdUser',
+				email: 'userThree@notmail.com',
+				bigint: BigInt(15),
+				birthdayString: '2024-04-02',
+				birthdayDate: new Date('2024-04-02T00:00:00.000Z'),
+				createdAt: new Date('2024-04-02T06:44:42.000Z'),
+				role: 'admin',
+				roleText: null,
+				roleText2: 'user',
+				profession: 'ThirdUserProf',
+				initials: 'FU',
+				isConfirmed: true,
+			},
+		]);
+	});
+
+	it(`Insert array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsers(
+					values: [
+						{
+							id: 3
+							name: "ThirdUser"
+							email: "userThree@notmail.com"
+							bigint: "15"
+							birthdayString: "2024-04-02"
+							birthdayDate: "2024-04-02T06:44:41.785Z"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							role: admin
+							roleText: null
+							profession: "ThirdUserProf"
+							initials: "FU"
+							isConfirmed: true
+						}
+						{
+							id: 4
+							name: "FourthUser"
+							email: "userFour@notmail.com"
+							bigint: "42"
+							birthdayString: "2024-04-04"
+							birthdayDate: "2024-04-04T00:00:00.000Z"
+							createdAt: "2024-04-04T06:44:41.785Z"
+							role: user
+							roleText: null
+							roleText2: user
+							profession: "FourthUserProf"
+							initials: "SU"
+							isConfirmed: false
+						}
+					]
+				) {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsers: {
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db
+			.select()
+			.from(schema.Users)
+			.where(inArray(schema.Users.id, [3, 4]));
+
+		expect(data).toStrictEqual([
+			{
+				id: 3,
+				name: 'ThirdUser',
+				email: 'userThree@notmail.com',
+				bigint: BigInt(15),
+				birthdayString: '2024-04-02',
+				birthdayDate: new Date('2024-04-02T00:00:00.000Z'),
+				createdAt: new Date('2024-04-02T06:44:42.000Z'),
+				role: 'admin',
+				roleText: null,
+				roleText2: 'user',
+				profession: 'ThirdUserProf',
+				initials: 'FU',
+				isConfirmed: true,
+			},
+			{
+				id: 4,
+				name: 'FourthUser',
+				email: 'userFour@notmail.com',
+				bigint: BigInt(42),
+				birthdayString: '2024-04-04',
+				birthdayDate: new Date('2024-04-04T00:00:00.000Z'),
+				createdAt: new Date('2024-04-04T06:44:42.000Z'),
+				role: 'user',
+				roleText: null,
+				roleText2: 'user',
+				profession: 'FourthUserProf',
+				initials: 'SU',
+				isConfirmed: false,
+			},
+		]);
+	});
+
+	it(`Update`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				updateCustomers(set: { isConfirmed: true, address: "Edited" }) {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				updateCustomers: {
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db.select().from(schema.Customers);
+
+		expect(data).toStrictEqual([
+			{
+				id: 1,
+				address: 'Edited',
+				isConfirmed: true,
+				registrationDate: new Date('2024-03-27T03:54:45.000Z'),
+				userId: 1,
+			},
+			{
+				id: 2,
+				address: 'Edited',
+				isConfirmed: true,
+				registrationDate: new Date('2024-03-27T03:55:42.000Z'),
+				userId: 2,
+			},
+		]);
+	});
+
+	it(`Delete`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				deleteFromCustomers {
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				deleteFromCustomers: {
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db.select().from(schema.Customers);
+
+		expect(data).toStrictEqual([]);
+	});
+});
+
+describe.sequential('__typename with data tests', async () => {
+	it(`Select single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					id
+					name
+					email
+					bigint
+					birthdayString
+					birthdayDate
+					createdAt
+					role
+					roleText
+					roleText2
+					profession
+					initials
+					isConfirmed
+					__typename
+				}
+
+				postsSingle {
+					id
+					authorId
+					content
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					bigint: '10',
+					birthdayString: '2024-04-02',
+					birthdayDate: '2024-04-02T00:00:00.000Z',
+					createdAt: '2024-04-02T06:44:42.000Z',
+					role: 'admin',
+					roleText: null,
+					roleText2: 'user',
+					profession: 'FirstUserProf',
+					initials: 'FU',
+					isConfirmed: true,
+					__typename: 'UsersSelectItem',
+				},
+				postsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+					__typename: 'PostsSelectItem',
+				},
+			},
+		});
+	});
+
+	it(`Select array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					id
+					name
+					email
+					bigint
+					birthdayString
+					birthdayDate
+					createdAt
+					role
+					roleText
+					roleText2
+					profession
+					initials
+					isConfirmed
+					__typename
+				}
+
+				posts {
+					id
+					authorId
+					content
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						bigint: '10',
+						birthdayString: '2024-04-02',
+						birthdayDate: '2024-04-02T00:00:00.000Z',
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: 'admin',
+						roleText: null,
+						roleText2: 'user',
+						profession: 'FirstUserProf',
+						initials: 'FU',
+						isConfirmed: true,
+						__typename: 'UsersSelectItem',
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+						__typename: 'UsersSelectItem',
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+						__typename: 'UsersSelectItem',
+					},
+				],
+				posts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+						__typename: 'PostsSelectItem',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersSingle {
+					id
+					name
+					email
+					bigint
+					birthdayString
+					birthdayDate
+					createdAt
+					role
+					roleText
+					roleText2
+					profession
+					initials
+					isConfirmed
+					__typename
+					posts {
+						id
+						authorId
+						content
+						__typename
+					}
+				}
+
+				postsSingle {
+					id
+					authorId
+					content
+					__typename
+					author {
+						id
+						name
+						email
+						bigint
+						birthdayString
+						birthdayDate
+						createdAt
+						role
+						roleText
+						roleText2
+						profession
+						initials
+						isConfirmed
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					bigint: '10',
+					birthdayString: '2024-04-02',
+					birthdayDate: '2024-04-02T00:00:00.000Z',
+					createdAt: '2024-04-02T06:44:42.000Z',
+					role: 'admin',
+					roleText: null,
+					roleText2: 'user',
+					profession: 'FirstUserProf',
+					initials: 'FU',
+					isConfirmed: true,
+					__typename: 'UsersSelectItem',
+					posts: [
+						{
+							id: 1,
+							authorId: 1,
+							content: '1MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							id: 2,
+							authorId: 1,
+							content: '2MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							id: 3,
+							authorId: 1,
+							content: '3MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+						{
+							id: 6,
+							authorId: 1,
+							content: '4MESSAGE',
+							__typename: 'UsersPostsRelation',
+						},
+					],
+				},
+				postsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+					__typename: 'PostsSelectItem',
+					author: {
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						bigint: '10',
+						birthdayString: '2024-04-02',
+						birthdayDate: '2024-04-02T00:00:00.000Z',
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: 'admin',
+						roleText: null,
+						roleText2: 'user',
+						profession: 'FirstUserProf',
+						initials: 'FU',
+						isConfirmed: true,
+						__typename: 'PostsAuthorRelation',
+					},
+				},
+			},
+		});
+	});
+
+	it(`Select array with relations`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users {
+					id
+					name
+					email
+					bigint
+					birthdayString
+					birthdayDate
+					createdAt
+					role
+					roleText
+					roleText2
+					profession
+					initials
+					isConfirmed
+					__typename
+					posts {
+						id
+						authorId
+						content
+						__typename
+					}
+				}
+
+				posts {
+					id
+					authorId
+					content
+					__typename
+					author {
+						id
+						name
+						email
+						bigint
+						birthdayString
+						birthdayDate
+						createdAt
+						role
+						roleText
+						roleText2
+						profession
+						initials
+						isConfirmed
+						__typename
+					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						bigint: '10',
+						birthdayString: '2024-04-02',
+						birthdayDate: '2024-04-02T00:00:00.000Z',
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: 'admin',
+						roleText: null,
+						roleText2: 'user',
+						profession: 'FirstUserProf',
+						initials: 'FU',
+						isConfirmed: true,
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								id: 1,
+								authorId: 1,
+								content: '1MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 2,
+								authorId: 1,
+								content: '2MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 3,
+								authorId: 1,
+								content: '3MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 6,
+								authorId: 1,
+								content: '4MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+						__typename: 'UsersSelectItem',
+						posts: [],
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+						__typename: 'UsersSelectItem',
+						posts: [
+							{
+								id: 4,
+								authorId: 5,
+								content: '1MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+							{
+								id: 5,
+								authorId: 5,
+								content: '2MESSAGE',
+								__typename: 'UsersPostsRelation',
+							},
+						],
+					},
+				],
+				posts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							bigint: null,
+							birthdayString: null,
+							birthdayDate: null,
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: null,
+							roleText: null,
+							roleText2: 'user',
+							profession: null,
+							initials: null,
+							isConfirmed: null,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							bigint: null,
+							birthdayString: null,
+							birthdayDate: null,
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: null,
+							roleText: null,
+							roleText2: 'user',
+							profession: null,
+							initials: null,
+							isConfirmed: null,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+						__typename: 'PostsSelectItem',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+							__typename: 'PostsAuthorRelation',
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it(`Insert single`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsersSingle(
+					values: {
+						id: 3
+						name: "ThirdUser"
+						email: "userThree@notmail.com"
+						bigint: "15"
+						birthdayString: "2024-04-02"
+						birthdayDate: "2024-04-02T06:44:41.785Z"
+						createdAt: "2024-04-02T06:44:41.785Z"
+						role: admin
+						roleText: null
+						profession: "ThirdUserProf"
+						initials: "FU"
+						isConfirmed: true
+					}
+				) {
+					isSuccess
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsersSingle: {
+					isSuccess: true,
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db.select().from(schema.Users).where(eq(schema.Users.id, 3));
+
+		expect(data).toStrictEqual([
+			{
+				id: 3,
+				name: 'ThirdUser',
+				email: 'userThree@notmail.com',
+				bigint: BigInt(15),
+				birthdayString: '2024-04-02',
+				birthdayDate: new Date('2024-04-02T00:00:00.000Z'),
+				createdAt: new Date('2024-04-02T06:44:42.000Z'),
+				role: 'admin',
+				roleText: null,
+				roleText2: 'user',
+				profession: 'ThirdUserProf',
+				initials: 'FU',
+				isConfirmed: true,
+			},
+		]);
+	});
+
+	it(`Insert array`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				insertIntoUsers(
+					values: [
+						{
+							id: 3
+							name: "ThirdUser"
+							email: "userThree@notmail.com"
+							bigint: "15"
+							birthdayString: "2024-04-02"
+							birthdayDate: "2024-04-02T06:44:41.785Z"
+							createdAt: "2024-04-02T06:44:41.785Z"
+							role: admin
+							roleText: null
+							profession: "ThirdUserProf"
+							initials: "FU"
+							isConfirmed: true
+						}
+						{
+							id: 4
+							name: "FourthUser"
+							email: "userFour@notmail.com"
+							bigint: "42"
+							birthdayString: "2024-04-04"
+							birthdayDate: "2024-04-04T00:00:00.000Z"
+							createdAt: "2024-04-04T06:44:41.785Z"
+							role: user
+							roleText: null
+							roleText2: user
+							profession: "FourthUserProf"
+							initials: "SU"
+							isConfirmed: false
+						}
+					]
+				) {
+					isSuccess
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				insertIntoUsers: {
+					isSuccess: true,
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db
+			.select()
+			.from(schema.Users)
+			.where(inArray(schema.Users.id, [3, 4]));
+
+		expect(data).toStrictEqual([
+			{
+				id: 3,
+				name: 'ThirdUser',
+				email: 'userThree@notmail.com',
+				bigint: BigInt(15),
+				birthdayString: '2024-04-02',
+				birthdayDate: new Date('2024-04-02T00:00:00.000Z'),
+				createdAt: new Date('2024-04-02T06:44:42.000Z'),
+				role: 'admin',
+				roleText: null,
+				roleText2: 'user',
+				profession: 'ThirdUserProf',
+				initials: 'FU',
+				isConfirmed: true,
+			},
+			{
+				id: 4,
+				name: 'FourthUser',
+				email: 'userFour@notmail.com',
+				bigint: BigInt(42),
+				birthdayString: '2024-04-04',
+				birthdayDate: new Date('2024-04-04T00:00:00.000Z'),
+				createdAt: new Date('2024-04-04T06:44:42.000Z'),
+				role: 'user',
+				roleText: null,
+				roleText2: 'user',
+				profession: 'FourthUserProf',
+				initials: 'SU',
+				isConfirmed: false,
+			},
+		]);
+	});
+
+	it(`Update`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				updateCustomers(set: { isConfirmed: true, address: "Edited" }) {
+					isSuccess
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				updateCustomers: {
+					isSuccess: true,
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db.select().from(schema.Customers);
+
+		expect(data).toStrictEqual([
+			{
+				id: 1,
+				address: 'Edited',
+				isConfirmed: true,
+				registrationDate: new Date('2024-03-27T03:54:45.000Z'),
+				userId: 1,
+			},
+			{
+				id: 2,
+				address: 'Edited',
+				isConfirmed: true,
+				registrationDate: new Date('2024-03-27T03:55:42.000Z'),
+				userId: 2,
+			},
+		]);
+	});
+
+	it(`Delete`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			mutation {
+				deleteFromCustomers {
+					isSuccess
+					__typename
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				deleteFromCustomers: {
+					isSuccess: true,
+					__typename: 'MutationReturn',
+				},
+			},
+		});
+
+		const data = await ctx.db.select().from(schema.Customers);
+
+		expect(data).toStrictEqual([]);
+	});
+});
