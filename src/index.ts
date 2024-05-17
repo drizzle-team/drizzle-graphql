@@ -2,12 +2,15 @@ import { is } from 'drizzle-orm';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
-import { GraphQLInputObjectType, GraphQLObjectType, GraphQLSchema } from 'graphql';
+import { GraphQLInputObjectType, GraphQLObjectType, GraphQLSchema, GraphQLSchemaConfig } from 'graphql';
 
 import { generateMySQL, generatePG, generateSQLite } from '@/util/builders';
-import type { AnyDrizzleDB, GeneratedData, BuildSchemaConfig } from './types';
+import type { AnyDrizzleDB, BuildSchemaConfig, GeneratedData } from './types';
 
-export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient, config?: BuildSchemaConfig): GeneratedData<TDbClient> => {
+export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
+	db: TDbClient,
+	config?: BuildSchemaConfig,
+): GeneratedData<TDbClient> => {
 	const schema = db._.fullSchema;
 	if (!schema) {
 		throw new Error(
@@ -26,17 +29,15 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient, 
 
 	const { queries, mutations, inputs, types } = generatorOutput;
 
-	const query = new GraphQLObjectType({
-		name: 'Query',
-		fields: queries,
-	});
-
-	const graphQLSchemaConfig = {
-		query,
+	const graphQLSchemaConfig: GraphQLSchemaConfig = {
 		types: [...Object.values(inputs), ...Object.values(types)] as (GraphQLInputObjectType | GraphQLObjectType)[],
+		query: new GraphQLObjectType({
+			name: 'Query',
+			fields: queries,
+		}),
 	};
 
-	if (config?.disableMutations !== true) {
+	if (config?.mutations !== false) {
 		const mutation = new GraphQLObjectType({
 			name: 'Mutation',
 			fields: mutations,
