@@ -5,9 +5,9 @@ import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { GraphQLInputObjectType, GraphQLObjectType, GraphQLSchema } from 'graphql';
 
 import { generateMySQL, generatePG, generateSQLite } from '@/util/builders';
-import type { AnyDrizzleDB, GeneratedData } from './types';
+import type { AnyDrizzleDB, GeneratedData, BuildSchemaConfig } from './types';
 
-export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient): GeneratedData<TDbClient> => {
+export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient, config?: BuildSchemaConfig): GeneratedData<TDbClient> => {
 	const schema = db._.fullSchema;
 	if (!schema) {
 		throw new Error(
@@ -31,16 +31,21 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(db: TDbClient):
 		fields: queries,
 	});
 
-	const mutation = new GraphQLObjectType({
-		name: 'Mutation',
-		fields: mutations,
-	});
-
-	const outputSchema = new GraphQLSchema({
+	const graphQLSchemaConfig = {
 		query,
-		mutation,
 		types: [...Object.values(inputs), ...Object.values(types)] as (GraphQLInputObjectType | GraphQLObjectType)[],
-	});
+	};
+
+	if (config?.disableMutations !== true) {
+		const mutation = new GraphQLObjectType({
+			name: 'Mutation',
+			fields: mutations,
+		});
+
+		graphQLSchemaConfig.mutation = mutation;
+	}
+
+	const outputSchema = new GraphQLSchema(graphQLSchemaConfig);
 
 	return { schema: outputSchema, entities: generatorOutput };
 };
