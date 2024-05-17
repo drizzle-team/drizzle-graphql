@@ -44,18 +44,18 @@ export type ExtractRelations<TSchema extends Record<string, Table | unknown>> = 
 
 export type ExtractTableRelations<TTable extends Table, TSchemaRelations extends Record<string, Relations>> = {
 	[
-		K in keyof TSchemaRelations as TSchemaRelations[K]['table']['_']['name'] extends TTable['_']['name'] ? K
-			: never
+	K in keyof TSchemaRelations as TSchemaRelations[K]['table']['_']['name'] extends TTable['_']['name'] ? K
+	: never
 	]: TSchemaRelations[K]['table']['_']['name'] extends TTable['_']['name']
-		? TSchemaRelations[K] extends Relations<any, infer RelationConfig> ? RelationConfig
-		: never
-		: never;
+	? TSchemaRelations[K] extends Relations<any, infer RelationConfig> ? RelationConfig
+	: never
+	: never;
 };
 
 export type ExtractTableByName<TTableSchema extends Record<string, Table>, TName extends string> = {
 	[
-		K in keyof TTableSchema as TTableSchema[K]['_']['name'] extends TName ? K
-			: never
+	K in keyof TTableSchema as TTableSchema[K]['_']['name'] extends TName ? K
+	: never
 	]: TTableSchema[K]['_']['name'] extends TName ? TTableSchema[K] : never;
 };
 
@@ -65,20 +65,20 @@ export type MutationReturnlessResult = {
 
 export type QueryArgs<TTable extends Table, isSingle extends boolean> = Partial<
 	(isSingle extends true ? {
-			offset: number;
-		}
+		offset: number;
+	}
 		: {
 			offset: number;
 			limit: number;
 		}) & {
-		where: Filters<TTable>;
-		orderBy: OrderByArgs<TTable>;
-	}
+			where: Filters<TTable>;
+			orderBy: OrderByArgs<TTable>;
+		}
 >;
 
 export type InsertArgs<TTable extends Table, isSingle extends boolean> = isSingle extends true ? {
-		values: GetRemappedTableInsertDataType<TTable>;
-	}
+	values: GetRemappedTableInsertDataType<TTable>;
+}
 	: {
 		values: Array<GetRemappedTableInsertDataType<TTable>>;
 	};
@@ -103,28 +103,28 @@ export type SelectResolver<
 	info: GraphQLResolveInfo,
 ) => Promise<
 	keyof TRelations extends infer RelKey ? RelKey extends string ? Array<
-				& GetRemappedTableDataType<TTable>
-				& {
-					[K in RelKey]: TRelations[K] extends One<string> ? 
-							| GetRemappedTableDataType<
-								ExtractTableByName<TTables, TRelations[K]['referencedTableName']> extends infer T ? T[keyof T]
-									: never
-							>
-							| null
-						: TRelations[K] extends Many<string> ? Array<
-								GetRemappedTableDataType<
-									ExtractTableByName<
-										TTables,
-										TRelations[K]['referencedTableName']
-									> extends infer T ? T[keyof T]
-										: never
-								>
-							>
-						: never;
-				}
+		& GetRemappedTableDataType<TTable>
+		& {
+			[K in RelKey]: TRelations[K] extends One<string> ?
+			| GetRemappedTableDataType<
+				ExtractTableByName<TTables, TRelations[K]['referencedTableName']> extends infer T ? T[keyof T]
+				: never
 			>
-		: Array<GetRemappedTableDataType<TTable>>
-		: Array<GetRemappedTableDataType<TTable>>
+			| null
+			: TRelations[K] extends Many<string> ? Array<
+				GetRemappedTableDataType<
+					ExtractTableByName<
+						TTables,
+						TRelations[K]['referencedTableName']
+					> extends infer T ? T[keyof T]
+					: never
+				>
+			>
+			: never;
+		}
+	>
+	: Array<GetRemappedTableDataType<TTable>>
+	: Array<GetRemappedTableDataType<TTable>>
 >;
 
 export type SelectSingleResolver<
@@ -137,26 +137,26 @@ export type SelectSingleResolver<
 	context: any,
 	info: GraphQLResolveInfo,
 ) => Promise<
-	| (keyof TRelations extends infer RelKey ? RelKey extends string ? 
-				& GetRemappedTableDataType<TTable>
-				& {
-					[K in RelKey]: TRelations[K] extends One<string> ? 
-							| GetRemappedTableDataType<
-								ExtractTableByName<TTables, TRelations[K]['referencedTableName']> extends infer T ? T[keyof T]
-									: never
-							>
-							| null
-						: TRelations[K] extends Many<string> ? Array<
-								GetRemappedTableDataType<
-									ExtractTableByName<
-										TTables,
-										TRelations[K]['referencedTableName']
-									> extends infer T ? T[keyof T]
-										: never
-								>
-							>
-						: never;
-				}
+	| (keyof TRelations extends infer RelKey ? RelKey extends string ?
+		& GetRemappedTableDataType<TTable>
+		& {
+			[K in RelKey]: TRelations[K] extends One<string> ?
+			| GetRemappedTableDataType<
+				ExtractTableByName<TTables, TRelations[K]['referencedTableName']> extends infer T ? T[keyof T]
+				: never
+			>
+			| null
+			: TRelations[K] extends Many<string> ? Array<
+				GetRemappedTableDataType<
+					ExtractTableByName<
+						TTables,
+						TRelations[K]['referencedTableName']
+					> extends infer T ? T[keyof T]
+					: never
+				>
+			>
+			: never;
+		}
 		: GetRemappedTableDataType<TTable>
 		: GetRemappedTableDataType<TTable>)
 	| null
@@ -198,59 +198,59 @@ export type QueriesCore<
 > =
 	& {
 		[TName in keyof TSchemaTables as TName extends string ? `${Camelize<TName>}` : never]: TName extends string ? {
-				type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}SelectItem`]>>>;
-				args: {
-					offset: {
-						type: GraphQLScalarType<number, number>;
-					};
-					limit: {
-						type: GraphQLScalarType<number, number>;
-					};
-					orderBy: {
-						type: TInputs[`${Pascalize<TName>}OrderBy`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}OrderBy`]
-							: never;
-					};
-					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
-							: never;
-					};
+			type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}SelectItem`]>>>;
+			args: {
+				offset: {
+					type: GraphQLScalarType<number, number>;
 				};
-				resolve: SelectResolver<
-					TSchemaTables[TName],
-					TSchemaTables,
-					ExtractTableRelations<TSchemaTables[TName], TSchemaRelations> extends infer R ? R[keyof R] : never
-				>;
-			}
-			: never;
+				limit: {
+					type: GraphQLScalarType<number, number>;
+				};
+				orderBy: {
+					type: TInputs[`${Pascalize<TName>}OrderBy`] extends GraphQLInputObjectType
+					? TInputs[`${Pascalize<TName>}OrderBy`]
+					: never;
+				};
+				where: {
+					type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
+					? TInputs[`${Pascalize<TName>}Filters`]
+					: never;
+				};
+			};
+			resolve: SelectResolver<
+				TSchemaTables[TName],
+				TSchemaTables,
+				ExtractTableRelations<TSchemaTables[TName], TSchemaRelations> extends infer R ? R[keyof R] : never
+			>;
+		}
+		: never;
 	}
 	& {
 		[TName in keyof TSchemaTables as TName extends string ? `${Camelize<TName>}Single` : never]: TName extends string
-			? {
-				type: TOutputs[`${Pascalize<TName>}SelectItem`];
-				args: {
-					offset: {
-						type: GraphQLScalarType<number, number>;
-					};
-					orderBy: {
-						type: TInputs[`${Pascalize<TName>}OrderBy`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}OrderBy`]
-							: never;
-					};
-					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
-							: never;
-					};
+		? {
+			type: TOutputs[`${Pascalize<TName>}SelectItem`];
+			args: {
+				offset: {
+					type: GraphQLScalarType<number, number>;
 				};
-				resolve: SelectSingleResolver<
-					TSchemaTables[TName],
-					TSchemaTables,
-					ExtractTableRelations<TSchemaTables[TName], TSchemaRelations> extends infer R ? R[keyof R] : never
-				>;
-			}
-			: never;
+				orderBy: {
+					type: TInputs[`${Pascalize<TName>}OrderBy`] extends GraphQLInputObjectType
+					? TInputs[`${Pascalize<TName>}OrderBy`]
+					: never;
+				};
+				where: {
+					type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
+					? TInputs[`${Pascalize<TName>}Filters`]
+					: never;
+				};
+			};
+			resolve: SelectSingleResolver<
+				TSchemaTables[TName],
+				TSchemaTables,
+				ExtractTableRelations<TSchemaTables[TName], TSchemaRelations> extends infer R ? R[keyof R] : never
+			>;
+		}
+		: never;
 	};
 
 export type MutationsCore<
@@ -261,81 +261,81 @@ export type MutationsCore<
 > =
 	& {
 		[
-			TName in keyof TSchemaTables as TName extends string ? `insertInto${Pascalize<TName>}`
-				: never
+		TName in keyof TSchemaTables as TName extends string ? `insertInto${Pascalize<TName>}`
+		: never
 		]: TName extends string ? {
-				type: IsReturnless extends true
-					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
-					: never
-					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
-				args: {
-					values: {
-						type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>>>;
-					};
+			type: IsReturnless extends true
+			? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
+			: never
+			: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
+			args: {
+				values: {
+					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>>>;
 				};
-				resolve: InsertArrResolver<TSchemaTables[TName], IsReturnless>;
-			}
-			: never;
+			};
+			resolve: InsertArrResolver<TSchemaTables[TName], IsReturnless>;
+		}
+		: never;
 	}
 	& {
 		[
-			TName in keyof TSchemaTables as TName extends string ? `insertInto${Pascalize<TName>}Single`
-				: never
+		TName in keyof TSchemaTables as TName extends string ? `insertInto${Pascalize<TName>}Single`
+		: never
 		]: TName extends string ? {
-				type: IsReturnless extends true
-					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
-					: never
-					: TOutputs[`${Pascalize<TName>}Item`];
+			type: IsReturnless extends true
+			? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
+			: never
+			: TOutputs[`${Pascalize<TName>}Item`];
 
-				args: {
-					values: {
-						type: GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>;
-					};
+			args: {
+				values: {
+					type: GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>;
 				};
-				resolve: InsertResolver<TSchemaTables[TName], IsReturnless>;
-			}
-			: never;
+			};
+			resolve: InsertResolver<TSchemaTables[TName], IsReturnless>;
+		}
+		: never;
 	}
 	& {
 		[TName in keyof TSchemaTables as TName extends string ? `update${Pascalize<TName>}` : never]: TName extends string
-			? {
-				type: IsReturnless extends true
-					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
-					: never
-					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
-				args: {
-					set: {
-						type: GraphQLNonNull<TInputs[`${Pascalize<TName>}UpdateInput`]>;
-					};
-					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
-							: never;
-					};
+		? {
+			type: IsReturnless extends true
+			? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
+			: never
+			: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
+			args: {
+				set: {
+					type: GraphQLNonNull<TInputs[`${Pascalize<TName>}UpdateInput`]>;
 				};
-				resolve: UpdateResolver<TSchemaTables[TName], IsReturnless>;
-			}
-			: never;
+				where: {
+					type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
+					? TInputs[`${Pascalize<TName>}Filters`]
+					: never;
+				};
+			};
+			resolve: UpdateResolver<TSchemaTables[TName], IsReturnless>;
+		}
+		: never;
 	}
 	& {
 		[
-			TName in keyof TSchemaTables as TName extends string ? `deleteFrom${Pascalize<TName>}`
-				: never
+		TName in keyof TSchemaTables as TName extends string ? `deleteFrom${Pascalize<TName>}`
+		: never
 		]: TName extends string ? {
-				type: IsReturnless extends true
-					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
-					: never
-					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
-				args: {
-					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
-							: never;
-					};
+			type: IsReturnless extends true
+			? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
+			: never
+			: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
+			args: {
+				where: {
+					type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
+					? TInputs[`${Pascalize<TName>}Filters`]
+					: never;
 				};
-				resolve: DeleteResolver<TSchemaTables[TName], IsReturnless>;
-			}
-			: never;
+			};
+			resolve: DeleteResolver<TSchemaTables[TName], IsReturnless>;
+		}
+		: never;
 	};
 
 export type GeneratedInputs<TSchema extends Record<string, Table>> =
@@ -357,8 +357,8 @@ export type GeneratedOutputs<TSchema extends Record<string, Table>, IsReturnless
 		[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}SelectItem` : never]: GraphQLObjectType;
 	}
 	& (IsReturnless extends true ? {
-			MutationReturn: GraphQLObjectType;
-		}
+		MutationReturn: GraphQLObjectType;
+	}
 		: {
 			[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}Item` : never]: GraphQLObjectType;
 		});
@@ -391,4 +391,8 @@ export type GeneratedData<
 > = {
 	schema: GraphQLSchema;
 	entities: GeneratedEntities<TDatabase>;
+};
+
+export type BuildSchemaConfig = {
+	disableMutations?: boolean;
 };
