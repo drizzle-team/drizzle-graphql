@@ -1,7 +1,13 @@
 import { type Column, getTableColumns, type Relation, type Table } from 'drizzle-orm';
 import { GraphQLError } from 'graphql';
+import { TableNamedRelations } from '../builders';
 
-export const remapToGraphQLCore = (key: string, value: any, relations?: Record<string, Relation>): any => {
+export const remapToGraphQLCore = (
+	key: string,
+	value: any,
+	tableName: string,
+	relationMap?: Record<string, Record<string, TableNamedRelations>>,
+): any => {
 	if (value instanceof Date) return value.toISOString();
 
 	if (value instanceof Buffer) return Array.from(value);
@@ -9,13 +15,15 @@ export const remapToGraphQLCore = (key: string, value: any, relations?: Record<s
 	if (typeof value === 'bigint') return value.toString();
 
 	if (Array.isArray(value)) {
-		if (relations?.[key]) return remapToGraphQLArrayOutput(value);
+		const relations = relationMap?.[tableName];
+		if (relations?.[key]) return remapToGraphQLArrayOutput(value, relations[key]!.targetTableName, relationMap);
 
-		return value.map((arrVal) => remapToGraphQLCore(key, arrVal));
+		return value.map((arrVal) => remapToGraphQLCore(key, arrVal, tableName, relationMap));
 	}
 
 	if (typeof value === 'object') {
-		if (relations?.[key]) return remapToGraphQLSingleOutput(value);
+		const relations = relationMap?.[tableName];
+		if (relations?.[key]) return remapToGraphQLSingleOutput(value, relations[key]!.targetTableName, relationMap);
 
 		return JSON.stringify(value);
 	}
@@ -23,20 +31,28 @@ export const remapToGraphQLCore = (key: string, value: any, relations?: Record<s
 	return value;
 };
 
-export const remapToGraphQLSingleOutput = (queryOutput: Record<string, any>, relations?: Record<string, Relation>) => {
+export const remapToGraphQLSingleOutput = (
+	queryOutput: Record<string, any>,
+	tableName: string,
+	relationMap?: Record<string, Record<string, TableNamedRelations>>,
+) => {
 	for (const [key, value] of Object.entries(queryOutput)) {
 		if (value === undefined || value === null) {
 			delete queryOutput[key];
 		} else {
-			queryOutput[key] = remapToGraphQLCore(key, value, relations);
+			queryOutput[key] = remapToGraphQLCore(key, value, tableName, relationMap);
 		}
 	}
 
 	return queryOutput;
 };
 
-export const remapToGraphQLArrayOutput = (queryOutput: Record<string, any>[], relations?: Record<string, Relation>) => {
-	for (const entry of queryOutput) remapToGraphQLSingleOutput(entry, relations);
+export const remapToGraphQLArrayOutput = (
+	queryOutput: Record<string, any>[],
+	tableName: string,
+	relationMap?: Record<string, Record<string, TableNamedRelations>>,
+) => {
+	for (const entry of queryOutput) remapToGraphQLSingleOutput(entry, tableName, relationMap);
 
 	return queryOutput;
 };

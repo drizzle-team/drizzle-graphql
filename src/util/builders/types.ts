@@ -1,4 +1,4 @@
-import type { Column, SQL, Table } from 'drizzle-orm';
+import type { Column, Relation, SQL, Table } from 'drizzle-orm';
 import type { PgArray } from 'drizzle-orm/pg-core';
 import type {
 	GraphQLFieldConfigArgumentMap,
@@ -9,6 +9,12 @@ import type {
 	GraphQLObjectType,
 	GraphQLScalarType,
 } from 'graphql';
+import type { ConvertedColumn, ConvertedRelationColumnWithArgs } from '../type-converter';
+
+export type TableNamedRelations = {
+	relation: Relation;
+	targetTableName: string;
+};
 
 export type TableSelectArgs = {
 	offset: number;
@@ -23,6 +29,7 @@ export type ProcessedTableSelectArgs = {
 	limit: number;
 	where: SQL;
 	orderBy: SQL[];
+	with?: Record<string, Partial<ProcessedTableSelectArgs>>;
 };
 
 export type SelectedColumnsRaw = [string, true][];
@@ -187,4 +194,11 @@ export type GeneratedTableTypesOutputs<WithReturning extends boolean> = WithRetu
 export type GeneratedTableTypes<WithReturning extends boolean> = {
 	inputs: GeneratedTableTypesInputs;
 	outputs: GeneratedTableTypesOutputs<WithReturning>;
+};
+
+export type SelectData<TWithOrder extends boolean> = {
+	filters: GraphQLInputObjectType;
+	tableFields: Record<string, ConvertedColumn>;
+	relationFields: Record<string, ConvertedRelationColumnWithArgs>;
+	order: TWithOrder extends true ? GraphQLInputObjectType : undefined;
 };

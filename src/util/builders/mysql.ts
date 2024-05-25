@@ -29,13 +29,13 @@ import {
 import type { GeneratedEntities } from '@/types';
 import type { RelationalQueryBuilder } from 'drizzle-orm/mysql-core/query-builders/query';
 import type { FieldNode, GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql';
-import type { CreatedResolver, Filters, TableSelectArgs } from './types';
+import type { CreatedResolver, Filters, TableNamedRelations, TableSelectArgs } from './types';
 
 const generateSelectArray = (
 	db: MySqlDatabase<any, any, any>,
 	tableName: string,
-	table: MySqlTable,
-	relations: Record<string, Relation> | undefined,
+	tables: Record<string, Table>,
+	relationMap: Record<string, Record<string, TableNamedRelations>>,
 	orderArgs: GraphQLInputObjectType,
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
@@ -64,6 +64,9 @@ const generateSelectArray = (
 		},
 	} as GraphQLFieldConfigArgumentMap;
 
+	const typeName = `${pascalize(tableName)}SelectItem`;
+	const table = tables[tableName]!;
+
 	return {
 		name: queryName,
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
@@ -79,14 +82,14 @@ const generateSelectArray = (
 					limit,
 					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
 					where: where ? extractFilters(table, tableName, where) : undefined,
-					with: relations
-						? extractRelationsParams(relations, tableSelection, `${pascalize(tableName)}SelectItem`, info)
+					with: relationMap[tableName]
+						? extractRelationsParams(relationMap, tables, tableName, info, typeName)
 						: undefined,
 				});
 
 				const result = await query;
 
-				return remapToGraphQLArrayOutput(result, relations);
+				return remapToGraphQLArrayOutput(result, tableName, relationMap);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -102,8 +105,8 @@ const generateSelectArray = (
 const generateSelectSingle = (
 	db: MySqlDatabase<any, any, any>,
 	tableName: string,
-	table: MySqlTable,
-	relations: Record<string, Relation> | undefined,
+	tables: Record<string, Table>,
+	relationMap: Record<string, Record<string, TableNamedRelations>>,
 	orderArgs: GraphQLInputObjectType,
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
@@ -129,6 +132,9 @@ const generateSelectSingle = (
 		},
 	} as GraphQLFieldConfigArgumentMap;
 
+	const typeName = `${pascalize(tableName)}SelectItem`;
+	const table = tables[tableName]!;
+
 	return {
 		name: queryName,
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
@@ -139,22 +145,21 @@ const generateSelectSingle = (
 				) as FieldNode;
 
 				const columns = extractSelectedColumnsFromNode(tableSelection, table);
-				const withFields = relations
-					? extractRelationsParams(relations, tableSelection, `${pascalize(tableName)}SelectItem`, info)
-					: undefined;
 
 				const query = queryBase.findFirst({
 					columns,
 					offset,
 					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
 					where: where ? extractFilters(table, tableName, where) : undefined,
-					with: withFields,
+					with: relationMap[tableName]
+						? extractRelationsParams(relationMap, tables, tableName, info, typeName)
+						: undefined,
 				});
 
 				const result = await query;
 				if (!result) return undefined;
 
-				return remapToGraphQLSingleOutput(result, relations);
+				return remapToGraphQLSingleOutput(result, tableName, relationMap);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -335,32 +340,42 @@ export const generateSchemaData = <
 	schema: TSchema,
 ): GeneratedEntities<TDrizzleInstance, TSchema> => {
 	const rawSchema = schema;
-
 	const schemaEntries = Object.entries(rawSchema);
 
-	const tables = Object.fromEntries(schemaEntries.filter(([key, value]) => is(value, MySqlTable))) as Record<
-		string,
-		Table
-	>;
-	if (!tables || !Object.keys(tables).length) {
-		throw new Error(
-			`Unable to extract tables from drizzle instance.\nDid you forget to pass tables to graphql schema constructor?`,
-		);
-	}
+	const tableEntries = schemaEntries.filter(([key, value]) => is(value, MySqlTable)) as [string, MySqlTable][];
+	const tables = Object.fromEntries(tableEntries);
 
-	const relations = Object.fromEntries(
-		schemaEntries
-			.filter(([key, value]) => is(value, Relations))
-			.map<[string, Relations]>(([key, value]) => [
-				Object.entries(tables).find(
-					([tableName, tableValue]) => tableValue === (value as Relations).table,
-				)![0] as string,
-				value as Relations,
-			])
-			.map(([tableName, relValue]) => [
-				tableName,
-				relValue.config(createTableRelationsHelpers(tables[tableName]!)),
-			]),
+	const rawRelations = schemaEntries
+		.filter(([key, value]) => is(value, Relations))
+		.map<[string, Relations]>(([key, value]) => [
+			tableEntries.find(
+				([tableName, tableValue]) => tableValue === (value as Relations).table,
+			)![0] as string,
+			value as Relations,
+		]).map<[string, Record<string, Relation>]>(([tableName, relValue]) => [
+			tableName,
+			relValue.config(createTableRelationsHelpers(tables[tableName]!)),
+		]);
+
+	const relations = Object.fromEntries(rawRelations);
+
+	const namedRelations = Object.fromEntries(
+		rawRelations
+			.map(([relName, config]) => {
+				const namedConfig: Record<string, TableNamedRelations> = Object.fromEntries(
+					Object.entries(config).map(([innerRelName, innerRelValue]) => [innerRelName, {
+						relation: innerRelValue,
+						targetTableName: tableEntries.find(([tableName, tableValue]) =>
+							tableValue === innerRelValue.referencedTable
+						)![0],
+					}]),
+				);
+
+				return [
+					relName,
+					namedConfig,
+				];
+			}),
 	);
 
 	const queries: ThunkObjMap<GraphQLFieldConfig<any, any>> = {};
@@ -368,7 +383,7 @@ export const generateSchemaData = <
 	const gqlSchemaTypes = Object.fromEntries(
 		Object.entries(tables).map(([tableName, table]) => [
 			tableName,
-			generateTableTypes(tableName, table, false, relations[tableName]),
+			generateTableTypes(tableName, tables, namedRelations, false),
 		]),
 	);
 
@@ -393,16 +408,16 @@ export const generateSchemaData = <
 		const selectArrGenerated = generateSelectArray(
 			db,
 			tableName,
-			schema[tableName] as MySqlTable,
-			relations[tableName],
+			tables,
+			namedRelations,
 			tableOrder,
 			tableFilters,
 		);
 		const selectSingleGenerated = generateSelectSingle(
 			db,
 			tableName,
-			schema[tableName] as MySqlTable,
-			relations[tableName],
+			tables,
+			namedRelations,
 			tableOrder,
 			tableFilters,
 		);

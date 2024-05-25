@@ -29,19 +29,35 @@ export const Customers = pgTable('customers', {
 		.notNull(),
 });
 
-export const usersRelations = relations(Users, ({ many }) => ({
-	posts: many(Posts),
-}));
-
 export const Posts = pgTable('posts', {
 	id: serial('id').primaryKey(),
 	content: text('content'),
 	authorId: integer('author_id'),
 });
 
+export const usersRelations = relations(Users, ({ one, many }) => ({
+	posts: many(Posts),
+	customer: one(Customers, {
+		fields: [Users.id],
+		references: [Customers.userId],
+	}),
+}));
+
+export const customersRelation = relations(Customers, ({ one, many }) => ({
+	user: one(Users, {
+		fields: [Customers.userId],
+		references: [Users.id],
+	}),
+	posts: many(Posts),
+}));
+
 export const postsRelations = relations(Posts, ({ one }) => ({
 	author: one(Users, {
 		fields: [Posts.authorId],
 		references: [Users.id],
+	}),
+	customer: one(Customers, {
+		fields: [Posts.authorId],
+		references: [Customers.userId],
 	}),
 }));

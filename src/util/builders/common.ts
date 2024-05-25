@@ -38,10 +38,15 @@ import { parseResolveInfo } from 'graphql-parse-resolve-info';
 
 import { pascalize } from '@/util/case-ops';
 import { remapFromGraphQLCore } from '@/util/data-mappers';
-import { ConvertedColumn, ConvertedInputColumn, drizzleColumnToGraphQLType } from '@/util/type-converter';
+import {
+	ConvertedColumn,
+	ConvertedInputColumn,
+	ConvertedRelationColumnWithArgs,
+	drizzleColumnToGraphQLType,
+} from '@/util/type-converter';
 
-import type { Column, Relation, Table } from 'drizzle-orm';
-import type { FieldNode, GraphQLFieldConfig, GraphQLResolveInfo } from 'graphql';
+import type { Column, Table } from 'drizzle-orm';
+import type { FieldNode, GraphQLResolveInfo } from 'graphql';
 import type { ResolveTree } from 'graphql-parse-resolve-info';
 import type {
 	FilterColumnOperators,
@@ -52,15 +57,30 @@ import type {
 	GeneratedTableTypesOutputs,
 	OrderByArgs,
 	ProcessedTableSelectArgs,
+	SelectData,
 	SelectedColumnsRaw,
 	SelectedSQLColumns,
+	TableNamedRelations,
 	TableSelectArgs,
 } from './types';
 
-export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): Record<string, true> => {
-	if (!info.selectionSet) return {};
+const rqbCrashTypes = [
+	'SQLiteBigInt',
+	'SQLiteBlobJson',
+	'SQLiteBlobBuffer',
+];
 
+export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): Record<string, true> => {
 	const tableColumns = getTableColumns(table);
+
+	if (!info.selectionSet) {
+		const columnKeys = Object.entries(tableColumns);
+		const columnName = columnKeys.find((e) => rqbCrashTypes.find((haram) => e[1].columnType !== haram))?.[0]
+			?? columnKeys[0]![0];
+
+		return Object.fromEntries([[columnName, true]]);
+	}
+
 	const selectedColumns: SelectedColumnsRaw = [];
 	for (const columnSelection of info.selectionSet.selections) {
 		if (columnSelection.kind !== Kind.FIELD || !tableColumns[columnSelection.name.value]) continue;
@@ -69,9 +89,37 @@ export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): R
 	}
 
 	if (!selectedColumns.length) {
-		const columnKeys = Object.keys(tableColumns);
+		const columnKeys = Object.entries(tableColumns);
+		const columnName = columnKeys.find((e) => rqbCrashTypes.find((haram) => e[1].columnType !== haram))?.[0]
+			?? columnKeys[0]![0];
 
-		selectedColumns.push([columnKeys[0]!, true]);
+		selectedColumns.push([columnName, true]);
+	}
+
+	return Object.fromEntries(selectedColumns);
+};
+
+export const extractSelectedColumnsFromTree = (
+	tree: Record<string, ResolveTree>,
+	table: Table,
+): Record<string, true> => {
+	const tableColumns = getTableColumns(table);
+
+	const treeEntries = Object.entries(tree);
+	const selectedColumns: SelectedColumnsRaw = [];
+
+	for (const [fieldName, fieldData] of treeEntries) {
+		if (!tableColumns[fieldData.name]) continue;
+
+		selectedColumns.push([fieldData.name, true]);
+	}
+
+	if (!selectedColumns.length) {
+		const columnKeys = Object.entries(tableColumns);
+		const columnName = columnKeys.find((e) => rqbCrashTypes.find((haram) => e[1].columnType !== haram))?.[0]
+			?? columnKeys[0]![0];
+
+		selectedColumns.push([columnName, true]);
 	}
 
 	return Object.fromEntries(selectedColumns);
@@ -173,10 +221,25 @@ const generateColumnFilterValues = (column: Column, tableName: string, columnNam
 	return type;
 };
 
-const filterMap = new WeakMap<Record<string, ConvertedInputColumn>>();
+const orderMap = new WeakMap<Object, Record<string, ConvertedInputColumn>>();
+const generateTableOrderCached = (table: Table, tableName: string) => {
+	if (orderMap.has(table)) return orderMap.get(table)!;
+
+	const columns = getTableColumns(table);
+	const columnEntries = Object.entries(columns);
+
+	const remapped = Object.fromEntries(
+		columnEntries.map(([columnName, columnDescription]) => [columnName, { type: innerOrder }]),
+	);
+
+	orderMap.set(table, remapped);
+
+	return remapped;
+};
+
+const filterMap = new WeakMap<Object, Record<string, ConvertedInputColumn>>();
 const generateTableFilterValuesCached = (table: Table, tableName: string) => {
-	// @ts-expect-error - mapping to object's address
-	if (filterMap.has(table)) return filterMap.get(table);
+	if (filterMap.has(table)) return filterMap.get(table)!;
 
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -190,16 +253,14 @@ const generateTableFilterValuesCached = (table: Table, tableName: string) => {
 		]),
 	);
 
-	// @ts-expect-error - mapping to object's address
 	filterMap.set(table, remapped);
 
 	return remapped;
 };
 
-const fieldMap = new WeakMap<Record<string, ConvertedColumn>>();
+const fieldMap = new WeakMap<Object, Record<string, ConvertedColumn>>();
 const generateTableSelectTypeFieldsCached = (table: Table, tableName: string): Record<string, ConvertedColumn> => {
-	// @ts-expect-error - mapping to object's address
-	if (fieldMap.has(table)) return fieldMap.get(table);
+	if (fieldMap.has(table)) return fieldMap.get(table)!;
 
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -211,98 +272,133 @@ const generateTableSelectTypeFieldsCached = (table: Table, tableName: string): R
 		]),
 	);
 
-	// @ts-expect-error - mapping to object's address
 	fieldMap.set(table, remapped);
 
 	return remapped;
 };
 
-export const generateTableTypes = <
-	TRelations extends Record<string, Relation> | undefined,
-	WithReturning extends boolean,
->(
+const generateSelectFields = <TWithOrder extends boolean>(
+	tables: Record<string, Table>,
 	tableName: string,
-	table: Table,
-	withReturning: WithReturning,
-	relations?: TRelations,
-): GeneratedTableTypes<WithReturning> => {
-	const relationEntries: [string, Relation][] = relations ? Object.entries(relations) : [];
+	relationMap: Record<string, Record<string, TableNamedRelations>>,
+	typeName: string,
+	withOrder: TWithOrder,
+	usedTables: Set<string> = new Set(),
+): SelectData<TWithOrder> => {
+	const relations = relationMap[tableName];
+	const relationEntries: [string, TableNamedRelations][] = relations ? Object.entries(relations) : [];
 
-	const relationFields = Object.fromEntries(
-		relationEntries.map<[string, GraphQLFieldConfig<any, any>]>(([relName, relValue]) => {
-			const relTableFields = Object.fromEntries(
-				Object.entries(getTableColumns(relValue.referencedTable)).map(([columnName, columnDescription]) => [
-					columnName,
-					drizzleColumnToGraphQLType(
-						columnDescription,
-						`${pascalize(tableName)}${pascalize(relName)}Relation`,
-						columnName,
+	const table = tables[tableName]!;
+
+	const orderColumns = generateTableOrderCached(table, tableName);
+	const order = withOrder
+		? new GraphQLInputObjectType({
+			name: `${typeName}OrderBy`,
+			fields: orderColumns,
+		})
+		: undefined;
+
+	const filterColumns = generateTableFilterValuesCached(table, tableName);
+	const filters: GraphQLInputObjectType = new GraphQLInputObjectType({
+		name: `${typeName}Filters`,
+		fields: {
+			...filterColumns,
+			OR: {
+				type: new GraphQLList(
+					new GraphQLNonNull(
+						new GraphQLInputObjectType({
+							name: `${typeName}FiltersOr`,
+							fields: filterColumns,
+						}),
 					),
-				]),
-			);
-
-			const type = new GraphQLObjectType({
-				name: `${pascalize(tableName)}${pascalize(relName)}Relation`,
-				fields: relTableFields,
-			});
-
-			const relationFilterColumns = generateTableFilterValuesCached(relValue.referencedTable, relName);
-			const where = new GraphQLInputObjectType({
-				name: `${pascalize(tableName)}${pascalize(relName)}RelationFilters`,
-				fields: {
-					...relationFilterColumns,
-					OR: {
-						type: new GraphQLList(
-							new GraphQLNonNull(
-								new GraphQLInputObjectType({
-									name: `${pascalize(tableName)}${pascalize(relName)}RelationFiltersOr`,
-									fields: relationFilterColumns,
-								}),
-							),
-						),
-					},
-				},
-			});
-
-			if (is(relValue, One)) {
-				return [
-					relName,
-					{
-						type: type,
-						args: {
-							where: { type: where },
-						},
-					} as GraphQLFieldConfig<any, any>,
-				];
-			}
-
-			const orderBy = new GraphQLInputObjectType({
-				name: `${pascalize(tableName)}${pascalize(relName)}RelationOrder`,
-				fields: Object.fromEntries(
-					Object.entries(relValue.referencedTable).map(([columnName, columnDescription]) => [
-						columnName,
-						{ type: innerOrder },
-					]),
 				),
-			});
-
-			return [
-				relName,
-				{
-					type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(type))),
-					args: {
-						where: { type: where },
-						orderBy: { type: orderBy },
-						offset: { type: GraphQLInt },
-						limit: { type: GraphQLInt },
-					},
-				} as GraphQLFieldConfig<any, any>,
-			];
-		}),
-	);
+			},
+		},
+	});
 
 	const tableFields = generateTableSelectTypeFieldsCached(table, tableName);
 
+	if (usedTables.has(tableName) || !relationEntries.length) {
+		return {
+			order,
+			filters,
+			tableFields,
+			relationFields: {},
+		} as SelectData<TWithOrder>;
+	}
+
+	const rawRelationFields: [string, ConvertedRelationColumnWithArgs][] = [];
+	const updatedUsedTables = new Set(usedTables).add(tableName);
+
+	for (const [relationName, { targetTableName, relation }] of relationEntries) {
+		const relTypeName = `${typeName}${pascalize(relationName)}Relation`;
+		const isOne = is(relation, One);
+
+		const relData = generateSelectFields(
+			tables,
+			targetTableName,
+			relationMap,
+			relTypeName,
+			!isOne,
+			updatedUsedTables,
+		);
+
+		const relType = new GraphQLObjectType({
+			name: relTypeName,
+			fields: { ...relData.tableFields, ...relData.relationFields },
+		});
+
+		if (isOne) {
+			rawRelationFields.push([
+				relationName,
+				{
+					type: relType,
+					args: {
+						where: { type: relData.filters },
+					},
+				},
+			]);
+
+			continue;
+		}
+
+		rawRelationFields.push([
+			relationName,
+			{
+				type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relType))),
+				args: {
+					where: { type: relData.filters },
+					orderBy: { type: relData.order! },
+					offset: { type: GraphQLInt },
+					limit: { type: GraphQLInt },
+				},
+			},
+		]);
+	}
+
+	const relationFields = Object.fromEntries(rawRelationFields);
+
+	return { order, filters, tableFields, relationFields } as SelectData<TWithOrder>;
+};
+
+export const generateTableTypes = <
+	WithReturning extends boolean,
+>(
+	tableName: string,
+	tables: Record<string, Table>,
+	relationMap: Record<string, Record<string, TableNamedRelations>>,
+	withReturning: WithReturning,
+): GeneratedTableTypes<WithReturning> => {
+	const stylizedName = pascalize(tableName);
+	const { tableFields, relationFields, filters, order } = generateSelectFields(
+		tables,
+		tableName,
+		relationMap,
+		stylizedName,
+		true,
+	);
+
+	const table = tables[tableName]!;
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
 
@@ -321,12 +417,12 @@ export const generateTableTypes = <
 	);
 
 	const insertInput = new GraphQLInputObjectType({
-		name: `${pascalize(tableName)}InsertInput`,
+		name: `${stylizedName}InsertInput`,
 		fields: insertFields,
 	});
 
 	const selectSingleOutput = new GraphQLObjectType({
-		name: `${pascalize(tableName)}SelectItem`,
+		name: `${stylizedName}SelectItem`,
 		fields: { ...tableFields, ...relationFields },
 	});
 
@@ -334,7 +430,7 @@ export const generateTableTypes = <
 
 	const singleTableItemOutput = withReturning
 		? new GraphQLObjectType({
-			name: `${pascalize(tableName)}Item`,
+			name: `${stylizedName}Item`,
 			fields: tableFields,
 		})
 		: undefined;
@@ -344,41 +440,15 @@ export const generateTableTypes = <
 		: undefined;
 
 	const updateInput = new GraphQLInputObjectType({
-		name: `${pascalize(tableName)}UpdateInput`,
+		name: `${stylizedName}UpdateInput`,
 		fields: updateFields,
-	});
-
-	const tableOrder = new GraphQLInputObjectType({
-		name: `${pascalize(tableName)}OrderBy`,
-		fields: Object.fromEntries(
-			columnEntries.map(([columnName, columnDescription]) => [columnName, { type: innerOrder }]),
-		),
-	});
-
-	const filterColumns = generateTableFilterValuesCached(table, tableName);
-
-	const tableFilters: GraphQLInputObjectType = new GraphQLInputObjectType({
-		name: `${pascalize(tableName)}Filters`,
-		fields: {
-			...filterColumns,
-			OR: {
-				type: new GraphQLList(
-					new GraphQLNonNull(
-						new GraphQLInputObjectType({
-							name: `${pascalize(tableName)}FiltersOr`,
-							fields: filterColumns,
-						}),
-					),
-				),
-			},
-		},
 	});
 
 	const inputs = {
 		insertInput,
 		updateInput,
-		tableOrder,
-		tableFilters,
+		tableOrder: order,
+		tableFilters: filters,
 	};
 
 	const outputs = (
@@ -556,58 +626,69 @@ export const extractFilters = <TTable extends Table>(
 	return variants.length ? (variants.length > 1 ? and(...variants) : variants[0]) : undefined;
 };
 
-export const extractRelationsParams = (
-	relations: Record<string, Relation>,
-	tableSelection: FieldNode,
+const extractRelationsParamsInner = (
+	relationMap: Record<string, Record<string, TableNamedRelations>>,
+	tables: Record<string, Table>,
+	tableName: string,
 	typeName: string,
+	originField: ResolveTree,
+	isInitial: boolean = false,
+) => {
+	const relations = relationMap[tableName];
+	if (!relations) return undefined;
+
+	const baseField = Object.entries(originField.fieldsByTypeName).find(([key, value]) => key === typeName)?.[1];
+	if (!baseField) return undefined;
+
+	const args: Record<string, Partial<ProcessedTableSelectArgs>> = {};
+
+	for (const [relName, { targetTableName, relation }] of Object.entries(relations)) {
+		const relTypeName = `${isInitial ? tableName : typeName}${pascalize(relName)}Relation`;
+		const relFieldSelection = baseField[relName]?.fieldsByTypeName[relTypeName];
+		if (!relFieldSelection) continue;
+
+		const columns = extractSelectedColumnsFromTree(relFieldSelection, tables[targetTableName]!);
+
+		const thisRecord: Partial<ProcessedTableSelectArgs> = {};
+		thisRecord.columns = columns;
+
+		const relationField = Object.values(baseField).find((e) => e.name === relName);
+		const relationArgs: Partial<TableSelectArgs> | undefined = relationField?.args;
+
+		const orderBy = relationArgs?.orderBy ? extractOrderBy(tables[targetTableName]!, relationArgs.orderBy!) : undefined;
+		const where = relationArgs?.where
+			? extractFilters(tables[targetTableName]!, relName, relationArgs?.where)
+			: undefined;
+		const offset = relationArgs?.offset ?? undefined;
+		const limit = relationArgs?.limit ?? undefined;
+
+		thisRecord.orderBy = orderBy;
+		thisRecord.where = where;
+		thisRecord.offset = offset;
+		thisRecord.limit = limit;
+
+		const relWith = relationField
+			? extractRelationsParamsInner(relationMap, tables, targetTableName, relTypeName, relationField)
+			: undefined;
+		thisRecord.with = relWith;
+
+		args[relName] = thisRecord;
+	}
+
+	return args;
+};
+
+export const extractRelationsParams = (
+	relationMap: Record<string, Record<string, TableNamedRelations>>,
+	tables: Record<string, Table>,
+	tableName: string,
 	info: GraphQLResolveInfo,
+	typeName: string,
 ): Record<string, Partial<ProcessedTableSelectArgs>> | undefined => {
-	const fields: Record<string, Partial<ProcessedTableSelectArgs>> = {};
 	const parsedInfo = parseResolveInfo(info, {
 		deep: true,
 	}) as ResolveTree | undefined;
+	if (!parsedInfo) return undefined;
 
-	const baseField = parsedInfo
-		? Object.entries(parsedInfo.fieldsByTypeName).find(([key, value]) => key === typeName)?.[1] ?? {}
-		: {};
-
-	for (const [relName, relValue] of Object.entries(relations)) {
-		if (!tableSelection.selectionSet) continue;
-
-		const node = tableSelection.selectionSet.selections.find(
-			(e) => e.kind === Kind.FIELD && e.name.value === relName,
-		) as FieldNode | undefined;
-		if (!node) continue;
-
-		const refTable = relValue.referencedTable;
-		const extractedColumns = extractSelectedColumnsFromNode(node, refTable);
-		const columns = Object.keys(extractedColumns).length ? extractedColumns : undefined;
-
-		const relationArgs: Partial<TableSelectArgs> | undefined = (
-			Object.values(baseField).find((e) => (e as any).name === relName) as any
-		)?.args;
-
-		if (!relationArgs) {
-			fields[relName] = {
-				columns,
-			};
-
-			continue;
-		}
-
-		const orderBy = relationArgs.orderBy ? extractOrderBy(refTable, relationArgs.orderBy!) : undefined;
-		const where = relationArgs.where ? extractFilters(refTable, relName, relationArgs?.where) : undefined;
-		const offset = relationArgs.offset ?? undefined;
-		const limit = relationArgs.limit ?? undefined;
-
-		fields[relName] = {
-			columns,
-			orderBy,
-			where,
-			offset,
-			limit,
-		};
-	}
-
-	return Object.keys(fields).length ? fields : undefined;
+	return extractRelationsParamsInner(relationMap, tables, tableName, typeName, parsedInfo, true);
 };
