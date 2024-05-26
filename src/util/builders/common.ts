@@ -644,7 +644,9 @@ const extractRelationsParamsInner = (
 
 	for (const [relName, { targetTableName, relation }] of Object.entries(relations)) {
 		const relTypeName = `${isInitial ? tableName : typeName}${pascalize(relName)}Relation`;
-		const relFieldSelection = baseField[relName]?.fieldsByTypeName[relTypeName];
+		const relFieldSelection = Object.values(baseField).find((field) =>
+			field.name === relName
+		)?.fieldsByTypeName[relTypeName];
 		if (!relFieldSelection) continue;
 
 		const columns = extractSelectedColumnsFromTree(relFieldSelection, tables[targetTableName]!);
