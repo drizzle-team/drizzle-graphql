@@ -1895,7 +1895,11 @@ describe.sequential('Type tests', () => {
 						limit: { type: GraphQLScalarType<number, number> };
 						where: { type: GraphQLInputObjectType };
 					};
-					resolve: SelectResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>;
+					resolve: SelectResolver<
+						typeof schema.Customers,
+						ExtractTables<typeof schema>,
+						typeof schema.customersRelations extends Relations<any, infer RelConf> ? RelConf : never
+					>;
 				};
 				readonly posts: {
 					type: GraphQLNonNull<GraphQLList<GraphQLNonNull<GraphQLObjectType>>>;
@@ -1933,7 +1937,11 @@ describe.sequential('Type tests', () => {
 						offset: { type: GraphQLScalarType<number, number> };
 						where: { type: GraphQLInputObjectType };
 					};
-					resolve: SelectSingleResolver<typeof schema.Customers, ExtractTables<typeof schema>, never>;
+					resolve: SelectSingleResolver<
+						typeof schema.Customers,
+						ExtractTables<typeof schema>,
+						typeof schema.customersRelations extends Relations<any, infer RelConf> ? RelConf : never
+					>;
 				};
 				readonly postsSingle: {
 					type: GraphQLObjectType;

@@ -643,7 +643,7 @@ const extractRelationsParamsInner = (
 	const args: Record<string, Partial<ProcessedTableSelectArgs>> = {};
 
 	for (const [relName, { targetTableName, relation }] of Object.entries(relations)) {
-		const relTypeName = `${isInitial ? tableName : typeName}${pascalize(relName)}Relation`;
+		const relTypeName = `${isInitial ? pascalize(tableName) : typeName}${pascalize(relName)}Relation`;
 		const relFieldSelection = Object.values(baseField).find((field) =>
 			field.name === relName
 		)?.fieldsByTypeName[relTypeName];
