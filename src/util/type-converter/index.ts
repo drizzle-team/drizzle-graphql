@@ -18,19 +18,20 @@ import type { PgArray } from 'drizzle-orm/pg-core';
 import { pascalize } from '../case-ops';
 import type { ConvertedColumn } from './types';
 
-const enumMap = new WeakMap<Record<string, GraphQLEnumType>>();
+const allowedNameChars = /^[a-zA-Z0-9_]+$/;
+
+const enumMap = new WeakMap<Object, GraphQLEnumType>();
 const generateEnumCached = (column: Column, columnName: string, tableName: string): GraphQLEnumType => {
-	// @ts-expect-error - mapping to object's address
-	if (enumMap.has(column)) return enumMap.get(column);
+	if (enumMap.has(column)) return enumMap.get(column)!;
 
 	const gqlEnum = new GraphQLEnumType({
 		name: `${pascalize(tableName)}${pascalize(columnName)}Enum`,
-		values: Object.fromEntries(column.enumValues!.map((e) => [e, {
+		values: Object.fromEntries(column.enumValues!.map((e, index) => [allowedNameChars.test(e) ? e : `Option${index}`, {
 			value: e,
+			description: `Value: ${e}`,
 		}])),
 	});
 
-	// @ts-expect-error - mapping to object's address
 	enumMap.set(column, gqlEnum);
 
 	return gqlEnum;
