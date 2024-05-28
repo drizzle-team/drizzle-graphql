@@ -325,6 +325,8 @@ const generateSelectFields = <TWithOrder extends boolean>(
 	relationMap: Record<string, Record<string, TableNamedRelations>>,
 	typeName: string,
 	withOrder: TWithOrder,
+	relationsDepthLimit: number | undefined,
+	currentDepth: number = 0,
 	usedTables: Set<string> = new Set(),
 ): SelectData<TWithOrder> => {
 	const relations = relationMap[tableName];
@@ -340,7 +342,10 @@ const generateSelectFields = <TWithOrder extends boolean>(
 
 	const tableFields = generateTableSelectTypeFieldsCached(table, tableName);
 
-	if (usedTables.has(tableName) || !relationEntries.length) {
+	if (
+		usedTables.has(tableName) || (typeof relationsDepthLimit === 'number' && currentDepth >= relationsDepthLimit)
+		|| !relationEntries.length
+	) {
 		return {
 			order,
 			filters,
@@ -351,6 +356,7 @@ const generateSelectFields = <TWithOrder extends boolean>(
 
 	const rawRelationFields: [string, ConvertedRelationColumnWithArgs][] = [];
 	const updatedUsedTables = new Set(usedTables).add(tableName);
+	const newDepth = currentDepth + 1;
 
 	for (const [relationName, { targetTableName, relation }] of relationEntries) {
 		const relTypeName = `${typeName}${pascalize(relationName)}Relation`;
@@ -362,6 +368,8 @@ const generateSelectFields = <TWithOrder extends boolean>(
 			relationMap,
 			relTypeName,
 			!isOne,
+			relationsDepthLimit,
+			newDepth,
 			updatedUsedTables,
 		);
 
@@ -410,6 +418,7 @@ export const generateTableTypes = <
 	tables: Record<string, Table>,
 	relationMap: Record<string, Record<string, TableNamedRelations>>,
 	withReturning: WithReturning,
+	relationsDepthLimit: number | undefined,
 ): GeneratedTableTypes<WithReturning> => {
 	const stylizedName = pascalize(tableName);
 	const { tableFields, relationFields, filters, order } = generateSelectFields(
@@ -418,6 +427,7 @@ export const generateTableTypes = <
 		relationMap,
 		stylizedName,
 		true,
+		relationsDepthLimit,
 	);
 
 	const table = tables[tableName]!;

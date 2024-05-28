@@ -392,13 +392,25 @@ export type GeneratedData<
 	entities: GeneratedEntities<TDatabase>;
 };
 
-/**
- * Determines whether generated mutations will be passed to returned schema.
- *
- * Set value to `false` to omit mutations from returned schema.
- *
- * Flag is treated as if set to `true` by default.
- */
 export type BuildSchemaConfig = {
+	/**
+	 * Determines whether generated mutations will be passed to returned schema.
+	 *
+	 * Set value to `false` to omit mutations from returned schema.
+	 *
+	 * Flag is treated as if set to `true` by default.
+	 */
 	mutations?: boolean;
+	/**
+	 * Limits depth of generated relation fields on queries.
+	 *
+	 * Expects non-negative integer or undefined.
+	 *
+	 * Set value to `undefined` to not limit relation depth.
+	 *
+	 * Set value to `0` to omit relations altogether.
+	 *
+	 * Value is treated as if set to `undefined` by default.
+	 */
+	relationsDepthLimit?: number;
 };

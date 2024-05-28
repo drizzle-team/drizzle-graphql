@@ -18,13 +18,22 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
 		);
 	}
 
+	if (typeof config?.relationsDepthLimit === 'number') {
+		if (config.relationsDepthLimit < 0) {
+			throw new Error('config.relationsDepthLimit is supposed to be nonnegative integer or undefined!');
+		}
+		if (config.relationsDepthLimit !== ~~config.relationsDepthLimit) {
+			throw new Error('config.relationsDepthLimit is supposed to be nonnegative integer or undefined!');
+		}
+	}
+
 	let generatorOutput;
 	if (is(db, MySqlDatabase)) {
-		generatorOutput = generateMySQL(db, schema);
+		generatorOutput = generateMySQL(db, schema, config?.relationsDepthLimit);
 	} else if (is(db, PgDatabase)) {
-		generatorOutput = generatePG(db, schema);
+		generatorOutput = generatePG(db, schema, config?.relationsDepthLimit);
 	} else if (is(db, BaseSQLiteDatabase)) {
-		generatorOutput = generateSQLite(db, schema);
+		generatorOutput = generateSQLite(db, schema, config?.relationsDepthLimit);
 	} else throw new Error('Unknown database instance type');
 
 	const { queries, mutations, inputs, types } = generatorOutput;

@@ -44,7 +44,7 @@ devDependencies:
     specifier: ^0.45.1
     version: 0.45.1
   drizzle-kit:
-    specifier: ^0.21.2
+    specifier: ^0.21.4
     version: 0.21.4
   drizzle-orm:
     specifier: 0.30.10

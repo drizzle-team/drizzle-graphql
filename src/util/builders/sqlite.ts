@@ -353,6 +353,7 @@ export const generateSchemaData = <
 >(
 	db: TDrizzleInstance,
 	schema: TSchema,
+	relationsDepthLimit: number | undefined,
 ): GeneratedEntities<TDrizzleInstance, TSchema> => {
 	const rawSchema = schema;
 	const schemaEntries = Object.entries(rawSchema);
@@ -406,7 +407,7 @@ export const generateSchemaData = <
 	const gqlSchemaTypes = Object.fromEntries(
 		Object.entries(tables).map(([tableName, table]) => [
 			tableName,
-			generateTableTypes(tableName, tables, namedRelations, true),
+			generateTableTypes(tableName, tables, namedRelations, true, relationsDepthLimit),
 		]),
 	);
 
