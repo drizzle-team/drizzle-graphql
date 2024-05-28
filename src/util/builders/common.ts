@@ -277,6 +277,48 @@ const generateTableSelectTypeFieldsCached = (table: Table, tableName: string): R
 	return remapped;
 };
 
+const orderTypeMap = new WeakMap<Object, GraphQLInputObjectType>();
+const generateTableOrderTypeCached = (table: Table, tableName: string) => {
+	if (orderTypeMap.has(table)) return orderTypeMap.get(table)!;
+
+	const orderColumns = generateTableOrderCached(table, tableName);
+	const order = new GraphQLInputObjectType({
+		name: `${tableName}OrderBy`,
+		fields: orderColumns,
+	});
+
+	orderTypeMap.set(table, order);
+
+	return order;
+};
+
+const filterTypeMap = new WeakMap<Object, GraphQLInputObjectType>();
+const generateTableFilterTypeCached = (table: Table, tableName: string) => {
+	if (filterTypeMap.has(table)) return filterTypeMap.get(table)!;
+
+	const filterColumns = generateTableFilterValuesCached(table, tableName);
+	const filters: GraphQLInputObjectType = new GraphQLInputObjectType({
+		name: `${tableName}Filters`,
+		fields: {
+			...filterColumns,
+			OR: {
+				type: new GraphQLList(
+					new GraphQLNonNull(
+						new GraphQLInputObjectType({
+							name: `${tableName}FiltersOr`,
+							fields: filterColumns,
+						}),
+					),
+				),
+			},
+		},
+	});
+
+	filterTypeMap.set(table, filters);
+
+	return filters;
+};
+
 const generateSelectFields = <TWithOrder extends boolean>(
 	tables: Record<string, Table>,
 	tableName: string,
@@ -290,31 +332,11 @@ const generateSelectFields = <TWithOrder extends boolean>(
 
 	const table = tables[tableName]!;
 
-	const orderColumns = generateTableOrderCached(table, tableName);
 	const order = withOrder
-		? new GraphQLInputObjectType({
-			name: `${typeName}OrderBy`,
-			fields: orderColumns,
-		})
+		? generateTableOrderTypeCached(table, tableName)
 		: undefined;
 
-	const filterColumns = generateTableFilterValuesCached(table, tableName);
-	const filters: GraphQLInputObjectType = new GraphQLInputObjectType({
-		name: `${typeName}Filters`,
-		fields: {
-			...filterColumns,
-			OR: {
-				type: new GraphQLList(
-					new GraphQLNonNull(
-						new GraphQLInputObjectType({
-							name: `${typeName}FiltersOr`,
-							fields: filterColumns,
-						}),
-					),
-				),
-			},
-		},
-	});
+	const filters = generateTableFilterTypeCached(table, tableName);
 
 	const tableFields = generateTableSelectTypeFieldsCached(table, tableName);
 
