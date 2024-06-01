@@ -14,7 +14,7 @@ Automatically create GraphQL schema or customizable schema config fields from Dr
     import { createYoga } from 'graphql-yoga'
     import { buildSchema } from 'drizzle-graphql'
 
-    // db - your drizzle instance, schema - your drizzle tables
+    // db - your drizzle instance
     import { db } from './database'
 
     const { schema } = buildSchema(db)
