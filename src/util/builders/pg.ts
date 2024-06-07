@@ -18,7 +18,7 @@ import {
 	extractSelectedColumnsSQLFormat,
 	generateTableTypes,
 } from '@/util/builders/common';
-import { camelize, pascalize } from '@/util/case-ops';
+import { capitalize, uncapitalize } from '@/util/case-ops';
 import {
 	remapFromGraphQLArrayInput,
 	remapFromGraphQLSingleInput,
@@ -39,7 +39,7 @@ const generateSelectArray = (
 	orderArgs: GraphQLInputObjectType,
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
-	const queryName = `${camelize(tableName)}`;
+	const queryName = `${uncapitalize(tableName)}`;
 	const queryBase = db.query[tableName as keyof typeof db.query] as unknown as
 		| RelationalQueryBuilder<any, any, any>
 		| undefined;
@@ -64,7 +64,7 @@ const generateSelectArray = (
 		},
 	} as GraphQLFieldConfigArgumentMap;
 
-	const typeName = `${pascalize(tableName)}SelectItem`;
+	const typeName = `${capitalize(tableName)}SelectItem`;
 	const table = tables[tableName]!;
 
 	return {
@@ -110,7 +110,7 @@ const generateSelectSingle = (
 	orderArgs: GraphQLInputObjectType,
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
-	const queryName = `${camelize(tableName)}Single`;
+	const queryName = `${uncapitalize(tableName)}Single`;
 	const queryBase = db.query[tableName as keyof typeof db.query] as unknown as
 		| RelationalQueryBuilder<any, any, any>
 		| undefined;
@@ -132,7 +132,7 @@ const generateSelectSingle = (
 		},
 	} as GraphQLFieldConfigArgumentMap;
 
-	const typeName = `${pascalize(tableName)}SelectItem`;
+	const typeName = `${capitalize(tableName)}SelectItem`;
 	const table = tables[tableName]!;
 
 	return {
@@ -176,7 +176,7 @@ const generateInsertArray = (
 	table: PgTable,
 	baseType: GraphQLInputObjectType,
 ): CreatedResolver => {
-	const queryName = `insertInto${pascalize(tableName)}`;
+	const queryName = `insertInto${capitalize(tableName)}`;
 
 	const queryArgs: GraphQLFieldConfigArgumentMap = {
 		values: {
@@ -214,7 +214,7 @@ const generateInsertSingle = (
 	table: PgTable,
 	baseType: GraphQLInputObjectType,
 ): CreatedResolver => {
-	const queryName = `insertInto${pascalize(tableName)}Single`;
+	const queryName = `insertInto${capitalize(tableName)}Single`;
 
 	const queryArgs: GraphQLFieldConfigArgumentMap = {
 		values: {
@@ -254,7 +254,7 @@ const generateUpdate = (
 	setArgs: GraphQLInputObjectType,
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
-	const queryName = `update${pascalize(tableName)}`;
+	const queryName = `update${capitalize(tableName)}`;
 
 	const queryArgs = {
 		set: {
@@ -304,7 +304,7 @@ const generateDelete = (
 	table: PgTable,
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
-	const queryName = `deleteFrom${pascalize(tableName)}`;
+	const queryName = `deleteFrom${capitalize(tableName)}`;
 
 	const queryArgs = {
 		where: {

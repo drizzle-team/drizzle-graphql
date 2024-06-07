@@ -36,7 +36,7 @@ import {
 } from 'graphql';
 import { parseResolveInfo } from 'graphql-parse-resolve-info';
 
-import { pascalize } from '@/util/case-ops';
+import { capitalize } from '@/util/case-ops';
 import { remapFromGraphQLCore } from '@/util/data-mappers';
 import {
 	ConvertedColumn,
@@ -200,14 +200,14 @@ const generateColumnFilterValues = (column: Column, tableName: string, columnNam
 	};
 
 	const type: GraphQLInputObjectType = new GraphQLInputObjectType({
-		name: `${pascalize(tableName)}${pascalize(columnName)}Filters`,
+		name: `${capitalize(tableName)}${capitalize(columnName)}Filters`,
 		fields: {
 			...baseFields,
 			OR: {
 				type: new GraphQLList(
 					new GraphQLNonNull(
 						new GraphQLInputObjectType({
-							name: `${pascalize(tableName)}${pascalize(columnName)}filtersOr`,
+							name: `${capitalize(tableName)}${capitalize(columnName)}filtersOr`,
 							fields: {
 								...baseFields,
 							},
@@ -283,7 +283,7 @@ const generateTableOrderTypeCached = (table: Table, tableName: string) => {
 
 	const orderColumns = generateTableOrderCached(table, tableName);
 	const order = new GraphQLInputObjectType({
-		name: `${tableName}OrderBy`,
+		name: `${capitalize(tableName)}OrderBy`,
 		fields: orderColumns,
 	});
 
@@ -298,14 +298,14 @@ const generateTableFilterTypeCached = (table: Table, tableName: string) => {
 
 	const filterColumns = generateTableFilterValuesCached(table, tableName);
 	const filters: GraphQLInputObjectType = new GraphQLInputObjectType({
-		name: `${tableName}Filters`,
+		name: `${capitalize(tableName)}Filters`,
 		fields: {
 			...filterColumns,
 			OR: {
 				type: new GraphQLList(
 					new GraphQLNonNull(
 						new GraphQLInputObjectType({
-							name: `${tableName}FiltersOr`,
+							name: `${capitalize(tableName)}FiltersOr`,
 							fields: filterColumns,
 						}),
 					),
@@ -359,7 +359,7 @@ const generateSelectFields = <TWithOrder extends boolean>(
 	const newDepth = currentDepth + 1;
 
 	for (const [relationName, { targetTableName, relation }] of relationEntries) {
-		const relTypeName = `${typeName}${pascalize(relationName)}Relation`;
+		const relTypeName = `${typeName}${capitalize(relationName)}Relation`;
 		const isOne = is(relation, One);
 
 		const relData = generateSelectFields(
@@ -420,7 +420,7 @@ export const generateTableTypes = <
 	withReturning: WithReturning,
 	relationsDepthLimit: number | undefined,
 ): GeneratedTableTypes<WithReturning> => {
-	const stylizedName = pascalize(tableName);
+	const stylizedName = capitalize(tableName);
 	const { tableFields, relationFields, filters, order } = generateSelectFields(
 		tables,
 		tableName,
@@ -675,7 +675,7 @@ const extractRelationsParamsInner = (
 	const args: Record<string, Partial<ProcessedTableSelectArgs>> = {};
 
 	for (const [relName, { targetTableName, relation }] of Object.entries(relations)) {
-		const relTypeName = `${isInitial ? pascalize(tableName) : typeName}${pascalize(relName)}Relation`;
+		const relTypeName = `${isInitial ? capitalize(tableName) : typeName}${capitalize(relName)}Relation`;
 		const relFieldSelection = Object.values(baseField).find((field) =>
 			field.name === relName
 		)?.fieldsByTypeName[relTypeName];

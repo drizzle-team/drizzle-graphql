@@ -22,7 +22,6 @@ import type {
 	GetRemappedTableUpdateDataType,
 	OrderByArgs,
 } from '@/util/builders';
-import type { Camelize, Pascalize } from '@/util/case-ops';
 
 export type AnyDrizzleDB<TSchema extends Record<string, any>> =
 	| PgDatabase<any, TSchema>
@@ -197,8 +196,8 @@ export type QueriesCore<
 	TOutputs extends Record<string, GraphQLObjectType>,
 > =
 	& {
-		[TName in keyof TSchemaTables as TName extends string ? `${Camelize<TName>}` : never]: TName extends string ? {
-				type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}SelectItem`]>>>;
+		[TName in keyof TSchemaTables as TName extends string ? `${Uncapitalize<TName>}` : never]: TName extends string ? {
+				type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Capitalize<TName>}SelectItem`]>>>;
 				args: {
 					offset: {
 						type: GraphQLScalarType<number, number>;
@@ -207,13 +206,13 @@ export type QueriesCore<
 						type: GraphQLScalarType<number, number>;
 					};
 					orderBy: {
-						type: TInputs[`${Pascalize<TName>}OrderBy`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}OrderBy`]
+						type: TInputs[`${Capitalize<TName>}OrderBy`] extends GraphQLInputObjectType
+							? TInputs[`${Capitalize<TName>}OrderBy`]
 							: never;
 					};
 					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
+						type: TInputs[`${Capitalize<TName>}Filters`] extends GraphQLInputObjectType
+							? TInputs[`${Capitalize<TName>}Filters`]
 							: never;
 					};
 				};
@@ -226,21 +225,21 @@ export type QueriesCore<
 			: never;
 	}
 	& {
-		[TName in keyof TSchemaTables as TName extends string ? `${Camelize<TName>}Single` : never]: TName extends string
-			? {
-				type: TOutputs[`${Pascalize<TName>}SelectItem`];
+		[TName in keyof TSchemaTables as TName extends string ? `${Uncapitalize<TName>}Single` : never]: TName extends
+			string ? {
+				type: TOutputs[`${Capitalize<TName>}SelectItem`];
 				args: {
 					offset: {
 						type: GraphQLScalarType<number, number>;
 					};
 					orderBy: {
-						type: TInputs[`${Pascalize<TName>}OrderBy`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}OrderBy`]
+						type: TInputs[`${Capitalize<TName>}OrderBy`] extends GraphQLInputObjectType
+							? TInputs[`${Capitalize<TName>}OrderBy`]
 							: never;
 					};
 					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
+						type: TInputs[`${Capitalize<TName>}Filters`] extends GraphQLInputObjectType
+							? TInputs[`${Capitalize<TName>}Filters`]
 							: never;
 					};
 				};
@@ -261,16 +260,16 @@ export type MutationsCore<
 > =
 	& {
 		[
-			TName in keyof TSchemaTables as TName extends string ? `insertInto${Pascalize<TName>}`
+			TName in keyof TSchemaTables as TName extends string ? `insertInto${Capitalize<TName>}`
 				: never
 		]: TName extends string ? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
 					: never
-					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
+					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Capitalize<TName>}Item`]>>>;
 				args: {
 					values: {
-						type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>>>;
+						type: GraphQLNonNull<GraphQLList<GraphQLNonNull<TInputs[`${Capitalize<TName>}InsertInput`]>>>;
 					};
 				};
 				resolve: InsertArrResolver<TSchemaTables[TName], IsReturnless>;
@@ -279,17 +278,17 @@ export type MutationsCore<
 	}
 	& {
 		[
-			TName in keyof TSchemaTables as TName extends string ? `insertInto${Pascalize<TName>}Single`
+			TName in keyof TSchemaTables as TName extends string ? `insertInto${Capitalize<TName>}Single`
 				: never
 		]: TName extends string ? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
 					: never
-					: TOutputs[`${Pascalize<TName>}Item`];
+					: TOutputs[`${Capitalize<TName>}Item`];
 
 				args: {
 					values: {
-						type: GraphQLNonNull<TInputs[`${Pascalize<TName>}InsertInput`]>;
+						type: GraphQLNonNull<TInputs[`${Capitalize<TName>}InsertInput`]>;
 					};
 				};
 				resolve: InsertResolver<TSchemaTables[TName], IsReturnless>;
@@ -297,19 +296,19 @@ export type MutationsCore<
 			: never;
 	}
 	& {
-		[TName in keyof TSchemaTables as TName extends string ? `update${Pascalize<TName>}` : never]: TName extends string
+		[TName in keyof TSchemaTables as TName extends string ? `update${Capitalize<TName>}` : never]: TName extends string
 			? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
 					: never
-					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
+					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Capitalize<TName>}Item`]>>>;
 				args: {
 					set: {
-						type: GraphQLNonNull<TInputs[`${Pascalize<TName>}UpdateInput`]>;
+						type: GraphQLNonNull<TInputs[`${Capitalize<TName>}UpdateInput`]>;
 					};
 					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
+						type: TInputs[`${Capitalize<TName>}Filters`] extends GraphQLInputObjectType
+							? TInputs[`${Capitalize<TName>}Filters`]
 							: never;
 					};
 				};
@@ -319,17 +318,17 @@ export type MutationsCore<
 	}
 	& {
 		[
-			TName in keyof TSchemaTables as TName extends string ? `deleteFrom${Pascalize<TName>}`
+			TName in keyof TSchemaTables as TName extends string ? `deleteFrom${Capitalize<TName>}`
 				: never
 		]: TName extends string ? {
 				type: IsReturnless extends true
 					? TOutputs['MutationReturn'] extends GraphQLObjectType ? TOutputs['MutationReturn']
 					: never
-					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Pascalize<TName>}Item`]>>>;
+					: GraphQLNonNull<GraphQLList<GraphQLNonNull<TOutputs[`${Capitalize<TName>}Item`]>>>;
 				args: {
 					where: {
-						type: TInputs[`${Pascalize<TName>}Filters`] extends GraphQLInputObjectType
-							? TInputs[`${Pascalize<TName>}Filters`]
+						type: TInputs[`${Capitalize<TName>}Filters`] extends GraphQLInputObjectType
+							? TInputs[`${Capitalize<TName>}Filters`]
 							: never;
 					};
 				};
@@ -340,27 +339,29 @@ export type MutationsCore<
 
 export type GeneratedInputs<TSchema extends Record<string, Table>> =
 	& {
-		[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}InsertInput` : never]: GraphQLInputObjectType;
+		[TName in keyof TSchema as TName extends string ? `${Capitalize<TName>}InsertInput` : never]:
+			GraphQLInputObjectType;
 	}
 	& {
-		[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}UpdateInput` : never]: GraphQLInputObjectType;
+		[TName in keyof TSchema as TName extends string ? `${Capitalize<TName>}UpdateInput` : never]:
+			GraphQLInputObjectType;
 	}
 	& {
-		[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}OrderBy` : never]: GraphQLInputObjectType;
+		[TName in keyof TSchema as TName extends string ? `${Capitalize<TName>}OrderBy` : never]: GraphQLInputObjectType;
 	}
 	& {
-		[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}Filters` : never]: GraphQLInputObjectType;
+		[TName in keyof TSchema as TName extends string ? `${Capitalize<TName>}Filters` : never]: GraphQLInputObjectType;
 	};
 
 export type GeneratedOutputs<TSchema extends Record<string, Table>, IsReturnless extends Boolean> =
 	& {
-		[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}SelectItem` : never]: GraphQLObjectType;
+		[TName in keyof TSchema as TName extends string ? `${Capitalize<TName>}SelectItem` : never]: GraphQLObjectType;
 	}
 	& (IsReturnless extends true ? {
 			MutationReturn: GraphQLObjectType;
 		}
 		: {
-			[TName in keyof TSchema as TName extends string ? `${Pascalize<TName>}Item` : never]: GraphQLObjectType;
+			[TName in keyof TSchema as TName extends string ? `${Capitalize<TName>}Item` : never]: GraphQLObjectType;
 		});
 
 export type GeneratedEntities<

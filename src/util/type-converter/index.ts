@@ -15,7 +15,7 @@ import {
 
 import type { Column } from 'drizzle-orm';
 import type { PgArray } from 'drizzle-orm/pg-core';
-import { pascalize } from '../case-ops';
+import { capitalize } from '../case-ops';
 import type { ConvertedColumn } from './types';
 
 const allowedNameChars = /^[a-zA-Z0-9_]+$/;
@@ -25,7 +25,7 @@ const generateEnumCached = (column: Column, columnName: string, tableName: strin
 	if (enumMap.has(column)) return enumMap.get(column)!;
 
 	const gqlEnum = new GraphQLEnumType({
-		name: `${pascalize(tableName)}${pascalize(columnName)}Enum`,
+		name: `${capitalize(tableName)}${capitalize(columnName)}Enum`,
 		values: Object.fromEntries(column.enumValues!.map((e, index) => [allowedNameChars.test(e) ? e : `Option${index}`, {
 			value: e,
 			description: `Value: ${e}`,
