@@ -358,8 +358,6 @@ export const generateSchemaData = <
 			relValue.config(createTableRelationsHelpers(tables[tableName]!)),
 		]);
 
-	const relations = Object.fromEntries(rawRelations);
-
 	const namedRelations = Object.fromEntries(
 		rawRelations
 			.map(([relName, config]) => {

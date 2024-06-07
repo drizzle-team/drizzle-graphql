@@ -2,9 +2,16 @@ import { is } from 'drizzle-orm';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
-import { GraphQLInputObjectType, GraphQLObjectType, GraphQLSchema, GraphQLSchemaConfig } from 'graphql';
+import {
+	GraphQLFieldConfig,
+	GraphQLInputObjectType,
+	GraphQLObjectType,
+	GraphQLSchema,
+	GraphQLSchemaConfig,
+} from 'graphql';
 
 import { generateMySQL, generatePG, generateSQLite } from '@/util/builders';
+import { ObjMap } from 'graphql/jsutils/ObjMap';
 import type { AnyDrizzleDB, BuildSchemaConfig, GeneratedData } from './types';
 
 export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
@@ -42,14 +49,14 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
 		types: [...Object.values(inputs), ...Object.values(types)] as (GraphQLInputObjectType | GraphQLObjectType)[],
 		query: new GraphQLObjectType({
 			name: 'Query',
-			fields: queries,
+			fields: queries as ObjMap<GraphQLFieldConfig<any, any, any>>,
 		}),
 	};
 
 	if (config?.mutations !== false) {
 		const mutation = new GraphQLObjectType({
 			name: 'Mutation',
-			fields: mutations,
+			fields: mutations as ObjMap<GraphQLFieldConfig<any, any, any>>,
 		});
 
 		graphQLSchemaConfig.mutation = mutation;
