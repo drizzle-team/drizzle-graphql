@@ -21,16 +21,20 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
 	const schema = db._.fullSchema;
 	if (!schema) {
 		throw new Error(
-			"Schema not found in drizzle instance. Make sure you're using drizzle-orm v0.30.9 or above and schema is passed to drizzle constructor!",
+			"Drizzle-GraphQL Error: Schema not found in drizzle instance. Make sure you're using drizzle-orm v0.30.9 or above and schema is passed to drizzle constructor!",
 		);
 	}
 
 	if (typeof config?.relationsDepthLimit === 'number') {
 		if (config.relationsDepthLimit < 0) {
-			throw new Error('config.relationsDepthLimit is supposed to be nonnegative integer or undefined!');
+			throw new Error(
+				'Drizzle-GraphQL Error: config.relationsDepthLimit is supposed to be nonnegative integer or undefined!',
+			);
 		}
 		if (config.relationsDepthLimit !== ~~config.relationsDepthLimit) {
-			throw new Error('config.relationsDepthLimit is supposed to be nonnegative integer or undefined!');
+			throw new Error(
+				'Drizzle-GraphQL Error: config.relationsDepthLimit is supposed to be nonnegative integer or undefined!',
+			);
 		}
 	}
 
@@ -41,7 +45,7 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
 		generatorOutput = generatePG(db, schema, config?.relationsDepthLimit);
 	} else if (is(db, BaseSQLiteDatabase)) {
 		generatorOutput = generateSQLite(db, schema, config?.relationsDepthLimit);
-	} else throw new Error('Unknown database instance type');
+	} else throw new Error('Drizzle-GraphQL Error: Unknown database instance type');
 
 	const { queries, mutations, inputs, types } = generatorOutput;
 

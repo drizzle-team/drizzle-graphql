@@ -45,7 +45,7 @@ const generateSelectArray = (
 		| undefined;
 	if (!queryBase) {
 		throw new Error(
-			`Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
+			`Drizzle-GraphQL Error: Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
 		);
 	}
 
@@ -116,7 +116,7 @@ const generateSelectSingle = (
 		| undefined;
 	if (!queryBase) {
 		throw new Error(
-			`Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
+			`Drizzle-GraphQL Error: Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
 		);
 	}
 
@@ -363,9 +363,10 @@ export const generateSchemaData = <
 		string,
 		SQLiteTable
 	>;
-	if (!tables || !Object.keys(tables).length) {
+
+	if (!tableEntries.length) {
 		throw new Error(
-			`Unable to extract tables from drizzle instance.\nDid you forget to pass tables to graphql schema constructor?`,
+			"Drizzle-GraphQL Error: No tables detected in Drizzle-ORM's database instance. Did you forget to pass schema to drizzle constructor?",
 		);
 	}
 

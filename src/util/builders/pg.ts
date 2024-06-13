@@ -45,7 +45,7 @@ const generateSelectArray = (
 		| undefined;
 	if (!queryBase) {
 		throw new Error(
-			`Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
+			`Drizzle-GraphQL Error: Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
 		);
 	}
 
@@ -116,7 +116,7 @@ const generateSelectSingle = (
 		| undefined;
 	if (!queryBase) {
 		throw new Error(
-			`Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
+			`Drizzle-GraphQL Error: Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`,
 		);
 	}
 
@@ -359,6 +359,12 @@ export const generateSchemaData = <
 		string,
 		PgTable
 	>;
+
+	if (!tableEntries.length) {
+		throw new Error(
+			"Drizzle-GraphQL Error: No tables detected in Drizzle-ORM's database instance. Did you forget to pass schema to drizzle constructor?",
+		);
+	}
 
 	const rawRelations = schemaEntries
 		.filter(([key, value]) => is(value, Relations))
