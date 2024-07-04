@@ -179,7 +179,7 @@ export const innerOrder = new GraphQLInputObjectType({
 });
 
 const generateColumnFilterValues = (column: Column, tableName: string, columnName: string): GraphQLInputObjectType => {
-	const columnGraphQLType = drizzleColumnToGraphQLType(column, columnName, tableName, true);
+	const columnGraphQLType = drizzleColumnToGraphQLType(column, columnName, tableName, true, false, true);
 	const columnArr = new GraphQLList(new GraphQLNonNull(columnGraphQLType.type));
 
 	const baseFields = {
@@ -437,14 +437,14 @@ export const generateTableTypes = <
 	const insertFields = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
 			columnName,
-			drizzleColumnToGraphQLType(columnDescription, columnName, tableName, false, true),
+			drizzleColumnToGraphQLType(columnDescription, columnName, tableName, false, true, true),
 		]),
 	);
 
 	const updateFields = Object.fromEntries(
 		columnEntries.map(([columnName, columnDescription]) => [
 			columnName,
-			drizzleColumnToGraphQLType(columnDescription, columnName, tableName, true),
+			drizzleColumnToGraphQLType(columnDescription, columnName, tableName, true, false, true),
 		]),
 	);
 

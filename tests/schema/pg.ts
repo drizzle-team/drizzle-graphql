@@ -1,5 +1,18 @@
 import { relations } from 'drizzle-orm';
-import { boolean, char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	char,
+	date,
+	geometry,
+	integer,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	varchar,
+	vector,
+} from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -17,6 +30,13 @@ export const Users = pgTable('users', {
 	profession: varchar('profession', { length: 20 }),
 	initials: char('initials', { length: 2 }),
 	isConfirmed: boolean('is_confirmed'),
+	vector: vector('vector_column', { dimensions: 5 }),
+	geoXy: geometry('geometry_xy', {
+		mode: 'xy',
+	}),
+	geoTuple: geometry('geometry_tuple', {
+		mode: 'tuple',
+	}),
 });
 
 export const Customers = pgTable('customers', {

@@ -89,7 +89,7 @@ const generateSelectArray = (
 
 				const result = await query;
 
-				return remapToGraphQLArrayOutput(result, tableName, relationMap);
+				return remapToGraphQLArrayOutput(result, tableName, table, relationMap);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -157,7 +157,7 @@ const generateSelectSingle = (
 				const result = await query;
 				if (!result) return undefined;
 
-				return remapToGraphQLSingleOutput(result, tableName, relationMap);
+				return remapToGraphQLSingleOutput(result, tableName, table, relationMap);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -199,7 +199,7 @@ const generateInsertArray = (
 					.returning(columns as Record<string, SQLiteColumn>)
 					.onConflictDoNothing();
 
-				return remapToGraphQLArrayOutput(result, tableName);
+				return remapToGraphQLArrayOutput(result, tableName, table);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -238,7 +238,7 @@ const generateInsertSingle = (
 
 				if (!result[0]) return undefined;
 
-				return remapToGraphQLSingleOutput(result[0], tableName);
+				return remapToGraphQLSingleOutput(result[0], tableName, table);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -289,7 +289,7 @@ const generateUpdate = (
 
 				const result = await query;
 
-				return remapToGraphQLArrayOutput(result, tableName);
+				return remapToGraphQLArrayOutput(result, tableName, table);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -334,7 +334,7 @@ const generateDelete = (
 
 				const result = await query;
 
-				return remapToGraphQLArrayOutput(result, tableName);
+				return remapToGraphQLArrayOutput(result, tableName, table);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);

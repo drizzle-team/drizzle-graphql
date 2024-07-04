@@ -28,7 +28,7 @@ const ctx: Context = {} as any;
 async function createDockerDB(ctx: Context): Promise<string> {
 	const docker = (ctx.docker = new Docker());
 	const port = await getPort({ port: 5433 });
-	const image = 'postgres:14';
+	const image = 'joshuasundance/postgis_pgvector';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
@@ -134,14 +134,7 @@ beforeAll(async () => {
 	ctx.entities = entities;
 	ctx.server = server;
 	ctx.gql = gql;
-});
 
-afterAll(async () => {
-	await ctx.client?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
-});
-
-beforeEach(async () => {
 	await ctx.db.execute(
 		sql`
 		DO $$ BEGIN
@@ -151,7 +144,13 @@ beforeEach(async () => {
 	   	END $$;
 		`,
 	);
+});
+afterAll(async () => {
+	await ctx.client?.end().catch(console.error);
+	await ctx.pgContainer?.stop().catch(console.error);
+});
 
+beforeEach(async () => {
 	await ctx.db.execute(
 		sql`CREATE TABLE IF NOT EXISTS "customers" (
 			"id" serial PRIMARY KEY NOT NULL,
@@ -181,7 +180,10 @@ beforeEach(async () => {
 		"role2" text DEFAULT 'user',
 		"profession" varchar(20),
 		"initials" char(2),
-		"is_confirmed" boolean
+		"is_confirmed" boolean,
+		"vector_column" vector(5),
+		"geometry_xy" geometry(point),
+		"geometry_tuple" geometry(point)
 	);`);
 
 	await ctx.db.execute(sql`DO $$ BEGIN
@@ -205,6 +207,12 @@ beforeEach(async () => {
 			profession: 'FirstUserProf',
 			initials: 'FU',
 			isConfirmed: true,
+			vector: [1, 2, 3, 4, 5],
+			geoXy: {
+				x: 20,
+				y: 20.3,
+			},
+			geoTuple: [20, 20.3],
 		},
 		{
 			id: 2,
@@ -270,10 +278,10 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	await ctx.db.execute(sql`drop schema public cascade`);
-	await ctx.db.execute(sql`create schema public`);
+	await ctx.db.execute(sql`DROP TABLE "posts" CASCADE;`);
+	await ctx.db.execute(sql`DROP TABLE "customers" CASCADE;`);
+	await ctx.db.execute(sql`DROP TABLE "users" CASCADE;`);
 });
-
 describe.sequential('Query tests', async () => {
 	it(`Select single`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `

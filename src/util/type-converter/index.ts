@@ -6,9 +6,11 @@ import {
 	GraphQLBoolean,
 	GraphQLEnumType,
 	GraphQLFloat,
+	GraphQLInputObjectType,
 	GraphQLInt,
 	GraphQLList,
 	GraphQLNonNull,
+	GraphQLObjectType,
 	GraphQLScalarType,
 	GraphQLString,
 } from 'graphql';
@@ -37,12 +39,38 @@ const generateEnumCached = (column: Column, columnName: string, tableName: strin
 	return gqlEnum;
 };
 
-const columnToGraphQLCore = (column: Column, columnName: string, tableName: string): ConvertedColumn => {
+const geoXyType = new GraphQLObjectType({
+	name: 'PgGeometryObject',
+	fields: {
+		x: { type: GraphQLFloat },
+		y: { type: GraphQLFloat },
+	},
+});
+
+const geoXyInputType = new GraphQLInputObjectType({
+	name: 'PgGeometryObjectInput',
+	fields: {
+		x: { type: GraphQLFloat },
+		y: { type: GraphQLFloat },
+	},
+});
+
+const columnToGraphQLCore = (
+	column: Column,
+	columnName: string,
+	tableName: string,
+	isInput: boolean,
+): ConvertedColumn<boolean> => {
 	switch (column.dataType) {
 		case 'boolean':
 			return { type: GraphQLBoolean, description: 'Boolean' };
 		case 'json':
-			return { type: GraphQLString, description: 'JSON' };
+			return column.columnType === 'PgGeometryObject'
+				? {
+					type: isInput ? geoXyInputType : geoXyType,
+					description: 'Geometry points XY',
+				}
+				: { type: GraphQLString, description: 'JSON' };
 		case 'date':
 			return { type: GraphQLString, description: 'Date' };
 		case 'string':
@@ -62,7 +90,26 @@ const columnToGraphQLCore = (column: Column, columnName: string, tableName: stri
 		case 'buffer':
 			return { type: new GraphQLList(new GraphQLNonNull(GraphQLInt)), description: 'Buffer' };
 		case 'array': {
-			const innerType = columnToGraphQLCore((column as Column as PgArray<any, any>).baseColumn, columnName, tableName);
+			if (column.columnType === 'PgVector') {
+				return {
+					type: new GraphQLList(new GraphQLNonNull(GraphQLFloat)),
+					description: 'Array<Float>',
+				};
+			}
+
+			if (column.columnType === 'PgGeometry') {
+				return {
+					type: new GraphQLList(new GraphQLNonNull(GraphQLFloat)),
+					description: 'Tuple<[Float, Float]>',
+				};
+			}
+
+			const innerType = columnToGraphQLCore(
+				(column as Column as PgArray<any, any>).baseColumn,
+				columnName,
+				tableName,
+				isInput,
+			);
 
 			return {
 				type: new GraphQLList(new GraphQLNonNull(innerType.type as GraphQLScalarType)),
@@ -75,26 +122,27 @@ const columnToGraphQLCore = (column: Column, columnName: string, tableName: stri
 	}
 };
 
-export const drizzleColumnToGraphQLType = <TColumn extends Column>(
+export const drizzleColumnToGraphQLType = <TColumn extends Column, TIsInput extends boolean>(
 	column: TColumn,
 	columnName: string,
 	tableName: string,
 	forceNullable = false,
 	defaultIsNullable = false,
-): ConvertedColumn => {
-	const typeDesc = columnToGraphQLCore(column, columnName, tableName);
+	isInput: TIsInput = false as TIsInput,
+): ConvertedColumn<TIsInput> => {
+	const typeDesc = columnToGraphQLCore(column, columnName, tableName, isInput);
 	const noDesc = ['string', 'boolean', 'number'];
 	if (noDesc.find((e) => e === column.dataType)) delete typeDesc.description;
 
-	if (forceNullable) return typeDesc;
+	if (forceNullable) return typeDesc as ConvertedColumn<TIsInput>;
 	if (column.notNull && !(defaultIsNullable && (column.hasDefault || column.defaultFn))) {
 		return {
 			type: new GraphQLNonNull(typeDesc.type),
 			description: typeDesc.description,
-		} as ConvertedColumn;
+		} as ConvertedColumn<TIsInput>;
 	}
 
-	return typeDesc;
+	return typeDesc as ConvertedColumn<TIsInput>;
 };
 
 export * from './types';

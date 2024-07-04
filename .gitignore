@@ -14,3 +14,4 @@ Tests/.temp
 Tests/Migrations
 .DS_Store
 drizzle.test-heavy.ts
+changes.md

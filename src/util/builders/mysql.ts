@@ -89,7 +89,7 @@ const generateSelectArray = (
 
 				const result = await query;
 
-				return remapToGraphQLArrayOutput(result, tableName, relationMap);
+				return remapToGraphQLArrayOutput(result, tableName, table, relationMap);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -159,7 +159,7 @@ const generateSelectSingle = (
 				const result = await query;
 				if (!result) return undefined;
 
-				return remapToGraphQLSingleOutput(result, tableName, relationMap);
+				return remapToGraphQLSingleOutput(result, tableName, table, relationMap);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
