@@ -8,14 +8,13 @@ import {
 	GraphQLList,
 	GraphQLNonNull,
 	GraphQLObjectType,
-	Kind,
 } from 'graphql';
 
 import {
 	extractFilters,
 	extractOrderBy,
 	extractRelationsParams,
-	extractSelectedColumnsFromNode,
+	extractSelectedColumnsFromTree,
 	generateTableTypes,
 } from '@/util/builders/common';
 import { capitalize, uncapitalize } from '@/util/case-ops';
@@ -25,10 +24,12 @@ import {
 	remapToGraphQLArrayOutput,
 	remapToGraphQLSingleOutput,
 } from '@/util/data-mappers';
+import { parseResolveInfo } from 'graphql-parse-resolve-info';
 
 import type { GeneratedEntities } from '@/types';
 import type { RelationalQueryBuilder } from 'drizzle-orm/mysql-core/query-builders/query';
-import type { FieldNode, GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql';
+import type { GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql';
+import type { ResolveTree } from 'graphql-parse-resolve-info';
 import type { CreatedResolver, Filters, TableNamedRelations, TableSelectArgs } from './types';
 
 const generateSelectArray = (
@@ -72,18 +73,22 @@ const generateSelectArray = (
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
 			try {
 				const { offset, limit, orderBy, where } = args;
-				const tableSelection = info.operation.selectionSet.selections.find(
-					(e) => e.kind === Kind.FIELD && e.name.value === info.fieldName,
-				) as FieldNode;
+
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
 
 				const query = queryBase.findMany({
-					columns: extractSelectedColumnsFromNode(tableSelection, table),
+					columns: extractSelectedColumnsFromTree(
+						parsedInfo.fieldsByTypeName[typeName]!,
+						table,
+					),
 					offset,
 					limit,
 					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
 					where: where ? extractFilters(table, tableName, where) : undefined,
 					with: relationMap[tableName]
-						? extractRelationsParams(relationMap, tables, tableName, info, typeName)
+						? extractRelationsParams(relationMap, tables, tableName, parsedInfo, typeName)
 						: undefined,
 				});
 
@@ -140,19 +145,21 @@ const generateSelectSingle = (
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
 			try {
 				const { offset, orderBy, where } = args;
-				const tableSelection = info.operation.selectionSet.selections.find(
-					(e) => e.kind === Kind.FIELD && e.name.value === info.fieldName,
-				) as FieldNode;
 
-				const columns = extractSelectedColumnsFromNode(tableSelection, table);
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
 
 				const query = queryBase.findFirst({
-					columns,
+					columns: extractSelectedColumnsFromTree(
+						parsedInfo.fieldsByTypeName[typeName]!,
+						table,
+					),
 					offset,
 					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
 					where: where ? extractFilters(table, tableName, where) : undefined,
 					with: relationMap[tableName]
-						? extractRelationsParams(relationMap, tables, tableName, info, typeName)
+						? extractRelationsParams(relationMap, tables, tableName, parsedInfo, typeName)
 						: undefined,
 				});
 

@@ -32,9 +32,7 @@ import {
 	GraphQLNonNull,
 	GraphQLObjectType,
 	GraphQLString,
-	Kind,
 } from 'graphql';
-import { parseResolveInfo } from 'graphql-parse-resolve-info';
 
 import { capitalize } from '@/util/case-ops';
 import { remapFromGraphQLCore } from '@/util/data-mappers';
@@ -46,7 +44,6 @@ import {
 } from '@/util/type-converter';
 
 import type { Column, Table } from 'drizzle-orm';
-import type { FieldNode, GraphQLResolveInfo } from 'graphql';
 import type { ResolveTree } from 'graphql-parse-resolve-info';
 import type {
 	FilterColumnOperators,
@@ -69,35 +66,6 @@ const rqbCrashTypes = [
 	'SQLiteBlobJson',
 	'SQLiteBlobBuffer',
 ];
-
-export const extractSelectedColumnsFromNode = (info: FieldNode, table: Table): Record<string, true> => {
-	const tableColumns = getTableColumns(table);
-
-	if (!info.selectionSet) {
-		const columnKeys = Object.entries(tableColumns);
-		const columnName = columnKeys.find((e) => rqbCrashTypes.find((haram) => e[1].columnType !== haram))?.[0]
-			?? columnKeys[0]![0];
-
-		return Object.fromEntries([[columnName, true]]);
-	}
-
-	const selectedColumns: SelectedColumnsRaw = [];
-	for (const columnSelection of info.selectionSet.selections) {
-		if (columnSelection.kind !== Kind.FIELD || !tableColumns[columnSelection.name.value]) continue;
-
-		selectedColumns.push([columnSelection.name.value, true]);
-	}
-
-	if (!selectedColumns.length) {
-		const columnKeys = Object.entries(tableColumns);
-		const columnName = columnKeys.find((e) => rqbCrashTypes.find((haram) => e[1].columnType !== haram))?.[0]
-			?? columnKeys[0]![0];
-
-		selectedColumns.push([columnName, true]);
-	}
-
-	return Object.fromEntries(selectedColumns);
-};
 
 export const extractSelectedColumnsFromTree = (
 	tree: Record<string, ResolveTree>,
@@ -125,32 +93,34 @@ export const extractSelectedColumnsFromTree = (
 	return Object.fromEntries(selectedColumns);
 };
 
-export const extractSelectedColumnsSQLFormat = <TTable extends Table>(
-	info: GraphQLResolveInfo,
-	queryName: string,
-	table: TTable,
-): Record<string, Column> => {
-	const tableSelection = info.operation.selectionSet.selections.find(
-		(e) => e.kind === Kind.FIELD && e.name.value === queryName,
-	) as FieldNode | undefined;
+/**
+ * Can't automatically determine column type on type level
+ * Since drizzle table types extend eachother
+ */
+export const extractSelectedColumnsFromTreeSQLFormat = <TColType extends Column = Column>(
+	tree: Record<string, ResolveTree>,
+	table: Table,
+): Record<string, TColType> => {
+	const tableColumns = getTableColumns(table);
 
+	const treeEntries = Object.entries(tree);
 	const selectedColumns: SelectedSQLColumns = [];
 
-	if (!tableSelection || !tableSelection.selectionSet) throw new GraphQLError('Received empty column selection!');
+	for (const [fieldName, fieldData] of treeEntries) {
+		if (!tableColumns[fieldData.name]) continue;
 
-	for (const columnSelection of tableSelection.selectionSet.selections) {
-		if (columnSelection.kind !== Kind.FIELD || columnSelection.name.value === '__typename') continue;
-
-		selectedColumns.push([columnSelection.name.value, table[columnSelection.name.value as keyof Table] as Column]);
+		selectedColumns.push([fieldData.name, tableColumns[fieldData.name]!]);
 	}
 
 	if (!selectedColumns.length) {
-		const columnKeys = Object.entries(getTableColumns(table));
+		const columnKeys = Object.entries(tableColumns);
+		const columnName = columnKeys.find((e) => rqbCrashTypes.find((haram) => e[1].columnType !== haram))?.[0]
+			?? columnKeys[0]![0];
 
-		selectedColumns.push([columnKeys[0]![0], columnKeys[0]![1]]);
+		selectedColumns.push([columnName, tableColumns[columnName]!]);
 	}
 
-	return Object.fromEntries(selectedColumns) as any;
+	return Object.fromEntries(selectedColumns) as Record<string, TColType>;
 };
 
 export const innerOrder = new GraphQLInputObjectType({
@@ -222,7 +192,7 @@ const generateColumnFilterValues = (column: Column, tableName: string, columnNam
 };
 
 const orderMap = new WeakMap<Object, Record<string, ConvertedInputColumn>>();
-const generateTableOrderCached = (table: Table, tableName: string) => {
+const generateTableOrderCached = (table: Table) => {
 	if (orderMap.has(table)) return orderMap.get(table)!;
 
 	const columns = getTableColumns(table);
@@ -281,7 +251,7 @@ const orderTypeMap = new WeakMap<Object, GraphQLInputObjectType>();
 const generateTableOrderTypeCached = (table: Table, tableName: string) => {
 	if (orderTypeMap.has(table)) return orderTypeMap.get(table)!;
 
-	const orderColumns = generateTableOrderCached(table, tableName);
+	const orderColumns = generateTableOrderCached(table);
 	const order = new GraphQLInputObjectType({
 		name: `${capitalize(tableName)}OrderBy`,
 		fields: orderColumns,
@@ -716,13 +686,10 @@ export const extractRelationsParams = (
 	relationMap: Record<string, Record<string, TableNamedRelations>>,
 	tables: Record<string, Table>,
 	tableName: string,
-	info: GraphQLResolveInfo,
+	info: ResolveTree | undefined,
 	typeName: string,
 ): Record<string, Partial<ProcessedTableSelectArgs>> | undefined => {
-	const parsedInfo = parseResolveInfo(info, {
-		deep: true,
-	}) as ResolveTree | undefined;
-	if (!parsedInfo) return undefined;
+	if (!info) return undefined;
 
-	return extractRelationsParamsInner(relationMap, tables, tableName, typeName, parsedInfo, true);
+	return extractRelationsParamsInner(relationMap, tables, tableName, typeName, info, true);
 };

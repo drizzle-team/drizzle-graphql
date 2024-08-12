@@ -7,15 +7,14 @@ import {
 	GraphQLList,
 	GraphQLNonNull,
 	GraphQLObjectType,
-	Kind,
 } from 'graphql';
 
 import {
 	extractFilters,
 	extractOrderBy,
 	extractRelationsParams,
-	extractSelectedColumnsFromNode,
-	extractSelectedColumnsSQLFormat,
+	extractSelectedColumnsFromTree,
+	extractSelectedColumnsFromTreeSQLFormat,
 	generateTableTypes,
 } from '@/util/builders/common';
 import { capitalize, uncapitalize } from '@/util/case-ops';
@@ -25,10 +24,12 @@ import {
 	remapToGraphQLArrayOutput,
 	remapToGraphQLSingleOutput,
 } from '@/util/data-mappers';
+import { parseResolveInfo } from 'graphql-parse-resolve-info';
 
 import type { GeneratedEntities } from '@/types';
 import type { RelationalQueryBuilder } from 'drizzle-orm/mysql-core/query-builders/query';
-import type { FieldNode, GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql';
+import type { GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, ThunkObjMap } from 'graphql';
+import type { ResolveTree } from 'graphql-parse-resolve-info';
 import type { CreatedResolver, Filters, TableNamedRelations, TableSelectArgs } from './types';
 
 const generateSelectArray = (
@@ -72,18 +73,22 @@ const generateSelectArray = (
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
 			try {
 				const { offset, limit, orderBy, where } = args;
-				const tableSelection = info.operation.selectionSet.selections.find(
-					(e) => e.kind === Kind.FIELD && e.name.value === info.fieldName,
-				) as FieldNode;
+
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
 
 				const query = queryBase.findMany({
-					columns: extractSelectedColumnsFromNode(tableSelection, table),
+					columns: extractSelectedColumnsFromTree(
+						parsedInfo.fieldsByTypeName[typeName]!,
+						table,
+					), /*extractSelectedColumnsFromNode(tableSelection, info.fragments, table) */
 					offset,
 					limit,
 					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
 					where: where ? extractFilters(table, tableName, where) : undefined,
 					with: relationMap[tableName]
-						? extractRelationsParams(relationMap, tables, tableName, info, typeName)
+						? extractRelationsParams(relationMap, tables, tableName, parsedInfo, typeName)
 						: undefined,
 				});
 
@@ -140,17 +145,21 @@ const generateSelectSingle = (
 		resolver: async (source, args: Partial<TableSelectArgs>, context, info) => {
 			try {
 				const { offset, orderBy, where } = args;
-				const tableSelection = info.operation.selectionSet.selections.find(
-					(e) => e.kind === Kind.FIELD && e.name.value === info.fieldName,
-				) as FieldNode;
+
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
 
 				const query = queryBase.findFirst({
-					columns: extractSelectedColumnsFromNode(tableSelection, table),
+					columns: extractSelectedColumnsFromTree(
+						parsedInfo.fieldsByTypeName[typeName]!,
+						table,
+					),
 					offset,
 					orderBy: orderBy ? extractOrderBy(table, orderBy) : undefined,
 					where: where ? extractFilters(table, tableName, where) : undefined,
 					with: relationMap[tableName]
-						? extractRelationsParams(relationMap, tables, tableName, info, typeName)
+						? extractRelationsParams(relationMap, tables, tableName, parsedInfo, typeName)
 						: undefined,
 				});
 
@@ -177,6 +186,7 @@ const generateInsertArray = (
 	baseType: GraphQLInputObjectType,
 ): CreatedResolver => {
 	const queryName = `insertInto${capitalize(tableName)}`;
+	const typeName = `${capitalize(tableName)}Item`;
 
 	const queryArgs: GraphQLFieldConfigArgumentMap = {
 		values: {
@@ -191,9 +201,17 @@ const generateInsertArray = (
 				const input = remapFromGraphQLArrayInput(args.values, table);
 				if (!input.length) throw new GraphQLError('No values were provided!');
 
-				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, PgColumn>;
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
 
-				const result = await db.insert(table).values(input).returning(columns).onConflictDoNothing();
+				const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
+					parsedInfo.fieldsByTypeName[typeName]!,
+					table,
+				);
+
+				const result = await db.insert(table).values(input).returning(columns)
+					.onConflictDoNothing();
 
 				return remapToGraphQLArrayOutput(result, tableName, table);
 			} catch (e) {
@@ -215,6 +233,7 @@ const generateInsertSingle = (
 	baseType: GraphQLInputObjectType,
 ): CreatedResolver => {
 	const queryName = `insertInto${capitalize(tableName)}Single`;
+	const typeName = `${capitalize(tableName)}Item`;
 
 	const queryArgs: GraphQLFieldConfigArgumentMap = {
 		values: {
@@ -228,9 +247,17 @@ const generateInsertSingle = (
 			try {
 				const input = remapFromGraphQLSingleInput(args.values, table);
 
-				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, PgColumn>;
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
 
-				const result = await db.insert(table).values(input).returning(columns).onConflictDoNothing();
+				const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
+					parsedInfo.fieldsByTypeName[typeName]!,
+					table,
+				);
+
+				const result = await db.insert(table).values(input).returning(columns)
+					.onConflictDoNothing();
 
 				if (!result[0]) return undefined;
 
@@ -255,6 +282,7 @@ const generateUpdate = (
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
 	const queryName = `update${capitalize(tableName)}`;
+	const typeName = `${capitalize(tableName)}Item`;
 
 	const queryArgs = {
 		set: {
@@ -271,7 +299,15 @@ const generateUpdate = (
 			try {
 				const { where, set } = args;
 
-				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, PgColumn>;
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
+
+				const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
+					parsedInfo.fieldsByTypeName[typeName]!,
+					table,
+				);
+
 				const input = remapFromGraphQLSingleInput(set, table);
 				if (!Object.keys(input).length) throw new GraphQLError('Unable to update with no values specified!');
 
@@ -305,6 +341,7 @@ const generateDelete = (
 	filterArgs: GraphQLInputObjectType,
 ): CreatedResolver => {
 	const queryName = `deleteFrom${capitalize(tableName)}`;
+	const typeName = `${capitalize(tableName)}Item`;
 
 	const queryArgs = {
 		where: {
@@ -318,7 +355,14 @@ const generateDelete = (
 			try {
 				const { where } = args;
 
-				const columns = extractSelectedColumnsSQLFormat(info, info.fieldName, table) as Record<string, PgColumn>;
+				const parsedInfo = parseResolveInfo(info, {
+					deep: true,
+				}) as ResolveTree;
+
+				const columns = extractSelectedColumnsFromTreeSQLFormat<PgColumn>(
+					parsedInfo.fieldsByTypeName[typeName]!,
+					table,
+				);
 
 				let query = db.delete(table);
 				if (where) {

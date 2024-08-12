@@ -56,7 +56,7 @@ beforeAll(async (t) => {
 	const connectionString = await createDockerDB();
 
 	const sleep = 1000;
-	let timeLeft = 20000;
+	let timeLeft = 30000;
 	let connected = false;
 	let lastError: unknown | undefined;
 	do {
@@ -582,6 +582,571 @@ describe.sequential('Query tests', async () => {
 						initials
 						isConfirmed
 					}
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				customUsers: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						bigint: '10',
+						birthdayString: '2024-04-02',
+						birthdayDate: '2024-04-02T00:00:00.000Z',
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: 'admin',
+						roleText: null,
+						roleText2: 'user',
+						profession: 'FirstUserProf',
+						initials: 'FU',
+						isConfirmed: true,
+						posts: [
+							{
+								id: 1,
+								authorId: 1,
+								content: '1MESSAGE',
+							},
+							{
+								id: 2,
+								authorId: 1,
+								content: '2MESSAGE',
+							},
+							{
+								id: 3,
+								authorId: 1,
+								content: '3MESSAGE',
+							},
+							{
+								id: 6,
+								authorId: 1,
+								content: '4MESSAGE',
+							},
+						],
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+						posts: [],
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+						posts: [
+							{
+								id: 4,
+								authorId: 5,
+								content: '1MESSAGE',
+							},
+							{
+								id: 5,
+								authorId: 5,
+								content: '2MESSAGE',
+							},
+						],
+					},
+				],
+				customPosts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+						},
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+						},
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+						},
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							bigint: null,
+							birthdayString: null,
+							birthdayDate: null,
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: null,
+							roleText: null,
+							roleText2: 'user',
+							profession: null,
+							initials: null,
+							isConfirmed: null,
+						},
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							bigint: null,
+							birthdayString: null,
+							birthdayDate: null,
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: null,
+							roleText: null,
+							roleText2: 'user',
+							profession: null,
+							initials: null,
+							isConfirmed: null,
+						},
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							bigint: '10',
+							birthdayString: '2024-04-02',
+							birthdayDate: '2024-04-02T00:00:00.000Z',
+							createdAt: '2024-04-02T06:44:42.000Z',
+							role: 'admin',
+							roleText: null,
+							roleText2: 'user',
+							profession: 'FirstUserProf',
+							initials: 'FU',
+							isConfirmed: true,
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				customUsersSingle {
+					...UsersFrag
+				}
+
+				customPostsSingle {
+					...PostsFrag
+				}
+			}
+
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				bigint
+				birthdayString
+				birthdayDate
+				createdAt
+				role
+				roleText
+				roleText2
+				profession
+				initials
+				isConfirmed
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				customUsersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					bigint: '10',
+					birthdayString: '2024-04-02',
+					birthdayDate: '2024-04-02T00:00:00.000Z',
+					createdAt: '2024-04-02T06:44:42.000Z',
+					role: 'admin',
+					roleText: null,
+					roleText2: 'user',
+					profession: 'FirstUserProf',
+					initials: 'FU',
+					isConfirmed: true,
+				},
+				customPostsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+				},
+			},
+		});
+	});
+
+	it(`Select array by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				customUsers {
+					...UsersFrag
+				}
+
+				customPosts {
+					...PostsFrag
+				}
+			}
+
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				bigint
+				birthdayString
+				birthdayDate
+				createdAt
+				role
+				roleText
+				roleText2
+				profession
+				initials
+				isConfirmed
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				customUsers: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						bigint: '10',
+						birthdayString: '2024-04-02',
+						birthdayDate: '2024-04-02T00:00:00.000Z',
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: 'admin',
+						roleText: null,
+						roleText2: 'user',
+						profession: 'FirstUserProf',
+						initials: 'FU',
+						isConfirmed: true,
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						bigint: null,
+						birthdayString: null,
+						birthdayDate: null,
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: null,
+						roleText: null,
+						roleText2: 'user',
+						profession: null,
+						initials: null,
+						isConfirmed: null,
+					},
+				],
+				customPosts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single with relations by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				customUsersSingle {
+					...UsersFrag
+				}
+
+				customPostsSingle {
+					...PostsFrag
+				}
+			}
+			
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				bigint
+				birthdayString
+				birthdayDate
+				createdAt
+				role
+				roleText
+				roleText2
+				profession
+				initials
+				isConfirmed
+				posts {
+					id
+					authorId
+					content
+				}
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+				author {
+					id
+					name
+					email
+					bigint
+					birthdayString
+					birthdayDate
+					createdAt
+					role
+					roleText
+					roleText2
+					profession
+					initials
+					isConfirmed
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				customUsersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					bigint: '10',
+					birthdayString: '2024-04-02',
+					birthdayDate: '2024-04-02T00:00:00.000Z',
+					createdAt: '2024-04-02T06:44:42.000Z',
+					role: 'admin',
+					roleText: null,
+					roleText2: 'user',
+					profession: 'FirstUserProf',
+					initials: 'FU',
+					isConfirmed: true,
+					posts: [
+						{
+							id: 1,
+							authorId: 1,
+							content: '1MESSAGE',
+						},
+						{
+							id: 2,
+							authorId: 1,
+							content: '2MESSAGE',
+						},
+						{
+							id: 3,
+							authorId: 1,
+							content: '3MESSAGE',
+						},
+
+						{
+							id: 6,
+							authorId: 1,
+							content: '4MESSAGE',
+						},
+					],
+				},
+				customPostsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+					author: {
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						bigint: '10',
+						birthdayString: '2024-04-02',
+						birthdayDate: '2024-04-02T00:00:00.000Z',
+						createdAt: '2024-04-02T06:44:42.000Z',
+						role: 'admin',
+						roleText: null,
+						roleText2: 'user',
+						profession: 'FirstUserProf',
+						initials: 'FU',
+						isConfirmed: true,
+					},
+				},
+			},
+		});
+	});
+
+	it(`Select array with relations by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				customUsers {
+					...UsersFrag
+				}
+
+				customPosts {
+					...PostsFrag
+				}
+			}
+			
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				bigint
+				birthdayString
+				birthdayDate
+				createdAt
+				role
+				roleText
+				roleText2
+				profession
+				initials
+				isConfirmed
+				posts {
+					id
+					authorId
+					content
+				}
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+				author {
+					id
+					name
+					email
+					bigint
+					birthdayString
+					birthdayDate
+					createdAt
+					role
+					roleText
+					roleText2
+					profession
+					initials
+					isConfirmed
 				}
 			}
 		`);

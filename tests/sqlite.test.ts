@@ -725,6 +725,555 @@ describe.sequential('Query tests', async () => {
 		});
 	});
 
+	it(`Select single by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				usersSingle {
+					...UsersFrag
+				}
+
+				postsSingle {
+					...PostsFrag
+				}
+			}
+
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				textJson
+				blobBigInt
+				numeric
+				createdAt
+				createdAtMs
+				real
+				text
+				role
+				isConfirmed
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
+					role: 'admin',
+					isConfirmed: true,
+				},
+				postsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+				},
+			},
+		});
+	});
+
+	it(`Select array by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				users {
+					...UsersFrag
+				}
+
+				posts {
+					...PostsFrag
+				}
+			}
+
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				textJson
+				blobBigInt
+				numeric
+				createdAt
+				createdAtMs
+				real
+				text
+				role
+				isConfirmed
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						blobBigInt: null,
+						textJson: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						numeric: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						role: 'user',
+						blobBigInt: null,
+						textJson: null,
+						createdAtMs: null,
+						numeric: null,
+						real: null,
+						text: null,
+						isConfirmed: null,
+					},
+				],
+				posts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+					},
+				],
+			},
+		});
+	});
+
+	it(`Select single with relations by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				usersSingle {
+					...UsersFrag
+				}
+
+				postsSingle {
+					...PostsFrag
+				}
+			}
+
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				textJson
+				blobBigInt
+				numeric
+				createdAt
+				createdAtMs
+				real
+				text
+				role
+				isConfirmed
+				posts {
+					id
+					authorId
+					content
+				}
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+				author {
+					id
+					name
+					email
+					textJson
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				usersSingle: {
+					id: 1,
+					name: 'FirstUser',
+					email: 'userOne@notmail.com',
+					textJson: '{"field":"value"}',
+					blobBigInt: '10',
+					numeric: '250.2',
+					createdAt: '2024-04-02T06:44:41.000Z',
+					createdAtMs: '2024-04-02T06:44:41.785Z',
+					real: 13.5,
+					text: 'sometext',
+					role: 'admin',
+					isConfirmed: true,
+					posts: [
+						{
+							id: 1,
+							authorId: 1,
+							content: '1MESSAGE',
+						},
+						{
+							id: 2,
+							authorId: 1,
+							content: '2MESSAGE',
+						},
+						{
+							id: 3,
+							authorId: 1,
+							content: '3MESSAGE',
+						},
+
+						{
+							id: 6,
+							authorId: 1,
+							content: '4MESSAGE',
+						},
+					],
+				},
+				postsSingle: {
+					id: 1,
+					authorId: 1,
+					content: '1MESSAGE',
+					author: {
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						textJson: '{"field":"value"}',
+						// RQB can't handle blobs in JSON, for now
+						// blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+					},
+				},
+			},
+		});
+	});
+
+	it(`Select array with relations by fragment`, async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			query testQuery {
+				users {
+					...UsersFrag
+				}
+
+				posts {
+					...PostsFrag
+				}
+			}
+
+			fragment UsersFrag on UsersSelectItem {
+				id
+				name
+				email
+				textJson
+				blobBigInt
+				numeric
+				createdAt
+				createdAtMs
+				real
+				text
+				role
+				isConfirmed
+				posts {
+					id
+					authorId
+					content
+				}
+			}
+
+			fragment PostsFrag on PostsSelectItem {
+				id
+				authorId
+				content
+				author {
+					id
+					name
+					email
+					textJson
+					numeric
+					createdAt
+					createdAtMs
+					real
+					text
+					role
+					isConfirmed
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [
+					{
+						id: 1,
+						name: 'FirstUser',
+						email: 'userOne@notmail.com',
+						textJson: '{"field":"value"}',
+						blobBigInt: '10',
+						numeric: '250.2',
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: '2024-04-02T06:44:41.785Z',
+						real: 13.5,
+						text: 'sometext',
+						role: 'admin',
+						isConfirmed: true,
+						posts: [
+							{
+								id: 1,
+								authorId: 1,
+								content: '1MESSAGE',
+							},
+							{
+								id: 2,
+								authorId: 1,
+								content: '2MESSAGE',
+							},
+							{
+								id: 3,
+								authorId: 1,
+								content: '3MESSAGE',
+							},
+							{
+								id: 6,
+								authorId: 1,
+								content: '4MESSAGE',
+							},
+						],
+					},
+					{
+						id: 2,
+						name: 'SecondUser',
+						email: null,
+						textJson: null,
+						blobBigInt: null,
+						numeric: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
+						posts: [],
+					},
+					{
+						id: 5,
+						name: 'FifthUser',
+						email: null,
+						textJson: null,
+						blobBigInt: null,
+						numeric: null,
+						createdAt: '2024-04-02T06:44:41.000Z',
+						createdAtMs: null,
+						real: null,
+						text: null,
+						role: 'user',
+						isConfirmed: null,
+						posts: [
+							{
+								id: 4,
+								authorId: 5,
+								content: '1MESSAGE',
+							},
+							{
+								id: 5,
+								authorId: 5,
+								content: '2MESSAGE',
+							},
+						],
+					},
+				],
+				posts: [
+					{
+						id: 1,
+						authorId: 1,
+						content: '1MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+						},
+					},
+					{
+						id: 2,
+						authorId: 1,
+						content: '2MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+						},
+					},
+					{
+						id: 3,
+						authorId: 1,
+						content: '3MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+						},
+					},
+					{
+						id: 4,
+						authorId: 5,
+						content: '1MESSAGE',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							textJson: null,
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: null,
+							numeric: null,
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: null,
+							real: null,
+							text: null,
+							role: 'user',
+							isConfirmed: null,
+						},
+					},
+					{
+						id: 5,
+						authorId: 5,
+						content: '2MESSAGE',
+						author: {
+							id: 5,
+							name: 'FifthUser',
+							email: null,
+							textJson: null,
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: null,
+							numeric: null,
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: null,
+							real: null,
+							text: null,
+							role: 'user',
+							isConfirmed: null,
+						},
+					},
+					{
+						id: 6,
+						authorId: 1,
+						content: '4MESSAGE',
+						author: {
+							id: 1,
+							name: 'FirstUser',
+							email: 'userOne@notmail.com',
+							textJson: '{"field":"value"}',
+							// RQB can't handle blobs in JSON, for now
+							// blobBigInt: '10',
+							numeric: '250.2',
+							createdAt: '2024-04-02T06:44:41.000Z',
+							createdAtMs: '2024-04-02T06:44:41.785Z',
+							real: 13.5,
+							text: 'sometext',
+							role: 'admin',
+							isConfirmed: true,
+						},
+					},
+				],
+			},
+		});
+	});
+
 	it(`Insert single`, async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
