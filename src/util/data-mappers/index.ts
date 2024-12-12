@@ -40,7 +40,9 @@ export const remapToGraphQLCore = (
 				relationMap,
 			);
 		}
-		if (column.columnType === 'PgGeometryObject') return value;
+		if (column.columnType === 'PgGeometryObject' || column.columnType === 'PgJsonb') {
+			return value;
+		}
 
 		return JSON.stringify(value);
 	}

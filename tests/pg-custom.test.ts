@@ -172,6 +172,8 @@ beforeEach(async () => {
 		"id" serial PRIMARY KEY NOT NULL,
 		"name" text NOT NULL,
 		"email" text,
+		"config_array" jsonb,
+		"config_object" jsonb,
 		"birthday_string" date,
 		"birthday_date" date,
 		"created_at" timestamp DEFAULT now() NOT NULL,
