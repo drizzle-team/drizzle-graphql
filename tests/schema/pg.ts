@@ -5,6 +5,7 @@ import {
 	date,
 	geometry,
 	integer,
+	jsonb,
 	pgEnum,
 	pgTable,
 	serial,
@@ -53,6 +54,7 @@ export const Posts = pgTable('posts', {
 	id: serial('id').primaryKey(),
 	content: text('content'),
 	authorId: integer('author_id'),
+	postConfig: jsonb('post_config'),
 });
 
 export const usersRelations = relations(Users, ({ one, many }) => ({

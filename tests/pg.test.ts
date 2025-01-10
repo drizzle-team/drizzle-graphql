@@ -150,7 +150,8 @@ beforeEach(async () => {
 	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "posts" (
 		"id" serial PRIMARY KEY NOT NULL,
 		"content" text,
-		"author_id" integer
+		"author_id" integer,
+		"post_config" jsonb
 	);`);
 
 	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "users" (
@@ -217,11 +218,13 @@ beforeEach(async () => {
 			id: 1,
 			authorId: 1,
 			content: '1MESSAGE',
+			postConfig: ['config1', { configName: 'hello', configValue: 123 }],
 		},
 		{
 			id: 2,
 			authorId: 1,
 			content: '2MESSAGE',
+			postConfig: ['config2', { configName: 'hello', configValue: 123 }],
 		},
 		{
 			id: 3,
@@ -299,6 +302,7 @@ describe.sequential('Query tests', async () => {
 					id
 					authorId
 					content
+					postConfig
 				}
 			}
 		`);
@@ -330,6 +334,7 @@ describe.sequential('Query tests', async () => {
 					id: 1,
 					authorId: 1,
 					content: '1MESSAGE',
+					postConfig: '["config1",{"configName":"hello","configValue":123}]',
 				},
 			},
 		});
