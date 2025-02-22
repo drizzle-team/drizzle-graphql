@@ -3,6 +3,7 @@ import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import {
+	GraphQLEnumType,
 	GraphQLFieldConfig,
 	GraphQLInputObjectType,
 	GraphQLObjectType,
@@ -11,6 +12,7 @@ import {
 } from 'graphql';
 
 import { generateMySQL, generatePG, generateSQLite } from '@/util/builders';
+import { getEnumTypes } from '@/util/type-converter';
 import { ObjMap } from 'graphql/jsutils/ObjMap';
 import type { AnyDrizzleDB, BuildSchemaConfig, GeneratedData } from './types';
 
@@ -46,6 +48,13 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
 	} else if (is(db, BaseSQLiteDatabase)) {
 		generatorOutput = generateSQLite(db, schema, config?.relationsDepthLimit);
 	} else throw new Error('Drizzle-GraphQL Error: Unknown database instance type');
+
+	const enums = getEnumTypes().reduce((enums, enumType) => {
+		enums[enumType.name] = enumType;
+		return enums;
+	}, {} as Record<string, GraphQLEnumType>);
+
+	generatorOutput.enums = enums;
 
 	const { queries, mutations, inputs, types } = generatorOutput;
 

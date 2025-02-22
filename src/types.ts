@@ -6,6 +6,7 @@ import type { RelationalQueryBuilder as PgQuery } from 'drizzle-orm/pg-core/quer
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type { RelationalQueryBuilder as SQLiteQuery } from 'drizzle-orm/sqlite-core/query-builders/query';
 import type {
+	GraphQLEnumType,
 	GraphQLInputObjectType,
 	GraphQLList,
 	GraphQLNonNull,
@@ -384,6 +385,7 @@ export type GeneratedEntities<
 	>;
 	inputs: TInputs;
 	types: TOutputs;
+	enums: Record<string, GraphQLEnumType>;
 };
 
 export type GeneratedData<

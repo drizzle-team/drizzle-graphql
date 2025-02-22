@@ -23,6 +23,7 @@ import type { ConvertedColumn } from './types';
 const allowedNameChars = /^[a-zA-Z0-9_]+$/;
 
 const enumMap = new WeakMap<Object, GraphQLEnumType>();
+const enumTypes = [] as GraphQLEnumType[];
 const generateEnumCached = (column: Column, columnName: string, tableName: string): GraphQLEnumType => {
 	if (enumMap.has(column)) return enumMap.get(column)!;
 
@@ -35,6 +36,7 @@ const generateEnumCached = (column: Column, columnName: string, tableName: strin
 	});
 
 	enumMap.set(column, gqlEnum);
+	enumTypes.push(gqlEnum);
 
 	return gqlEnum;
 };
@@ -144,5 +146,7 @@ export const drizzleColumnToGraphQLType = <TColumn extends Column, TIsInput exte
 
 	return typeDesc as ConvertedColumn<TIsInput>;
 };
+
+export const getEnumTypes = () => enumTypes;
 
 export * from './types';
