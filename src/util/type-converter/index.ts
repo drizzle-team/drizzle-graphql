@@ -15,6 +15,8 @@ import {
 	GraphQLString,
 } from 'graphql';
 
+import { GraphQLJSON } from 'graphql-scalars'
+
 import type { Column } from 'drizzle-orm';
 import type { PgArray } from 'drizzle-orm/pg-core';
 import { capitalize } from '../case-ops';
@@ -70,7 +72,7 @@ const columnToGraphQLCore = (
 					type: isInput ? geoXyInputType : geoXyType,
 					description: 'Geometry points XY',
 				}
-				: { type: GraphQLString, description: 'JSON' };
+				: { type: GraphQLJSON, description: 'JSON' };
 		case 'date':
 			return { type: GraphQLString, description: 'Date' };
 		case 'string':

@@ -11,6 +11,9 @@ importers:
       graphql-parse-resolve-info:
         specifier: ^4.13.0
         version: 4.13.0(graphql@16.8.1)
+      graphql-scalars:
+        specifier: ^1.23.0
+        version: 1.24.0(graphql@16.8.1)
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.15.2
@@ -1584,6 +1587,12 @@ packages:
     engines: {node: '>=8.6'}
     peerDependencies:
       graphql: '>=0.9 <0.14 || ^14.0.2 || ^15.4.0 || ^16.3.0'
+
+  graphql-scalars@1.24.0:
+    resolution: {integrity: sha512-olbFN39m0XsHHESACUdd7jWU/lGxMMS1B7NZ8XqpqhKZrjBxzeGYAnQ4Ax//huYds771wb7gCznA+65QDuUa+g==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
 
   graphql-yoga@5.3.1:
     resolution: {integrity: sha512-n918QV6TF7xTjb9ASnozgsr4ydMc08c+x4eRAWKxxWVwSnzdP2xeN2zw1ljIzRD0ccSCNoBajGDKwcZkJDitPA==}
@@ -3853,6 +3862,11 @@ snapshots:
       tslib: 2.6.2
     transitivePeerDependencies:
       - supports-color
+
+  graphql-scalars@1.24.0(graphql@16.8.1):
+    dependencies:
+      graphql: 16.8.1
+      tslib: 2.6.2
 
   graphql-yoga@5.3.1(graphql@16.8.1):
     dependencies:

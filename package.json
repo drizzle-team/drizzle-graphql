@@ -1,8 +1,8 @@
 {
-	"name": "drizzle-graphql",
+	"name": "drizzle-graphql-extended",
 	"type": "module",
 	"author": "Drizzle Team",
-	"version": "0.8.5",
+	"version": "0.8.9",
 	"description": "Automatically generate GraphQL schema or customizable schema config fields from Drizzle ORM schema",
 	"scripts": {
 		"build": "pnpm tsx scripts/build.ts",
@@ -93,7 +93,8 @@
 	},
 	"homepage": "https://orm.drizzle.team/docs/graphql",
 	"dependencies": {
-		"graphql-parse-resolve-info": "^4.13.0"
+		"graphql-parse-resolve-info": "^4.13.0",
+		"graphql-scalars": "^1.23.0"
 	},
 	"peerDependencies": {
 		"drizzle-orm": ">=0.30.9",

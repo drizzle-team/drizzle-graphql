@@ -77,8 +77,10 @@ const generateSelectArray = (
 				const parsedInfo = parseResolveInfo(info, {
 					deep: true,
 				}) as ResolveTree;
+				
+				const customQueryBase = context?.db?.query[tableName] || queryBase;
 
-				const query = queryBase.findMany({
+				const query = customQueryBase.findMany({
 					columns: extractSelectedColumnsFromTree(
 						parsedInfo.fieldsByTypeName[typeName]!,
 						table,
@@ -150,7 +152,9 @@ const generateSelectSingle = (
 					deep: true,
 				}) as ResolveTree;
 
-				const query = queryBase.findFirst({
+				const customQueryBase = context?.db?.query[tableName] || queryBase;
+
+				const query = customQueryBase.findFirst({
 					columns: extractSelectedColumnsFromTree(
 						parsedInfo.fieldsByTypeName[typeName]!,
 						table,
@@ -210,7 +214,9 @@ const generateInsertArray = (
 					table,
 				);
 
-				const result = await db.insert(table).values(input).returning(columns)
+				const customDb = context?.db || db;
+
+				const result = await customDb.insert(table).values(input).returning(columns)
 					.onConflictDoNothing();
 
 				return remapToGraphQLArrayOutput(result, tableName, table);
@@ -256,7 +262,9 @@ const generateInsertSingle = (
 					table,
 				);
 
-				const result = await db.insert(table).values(input).returning(columns)
+				const customDb = context?.db || db;
+
+				const result = await customDb.insert(table).values(input).returning(columns)
 					.onConflictDoNothing();
 
 				if (!result[0]) return undefined;
@@ -311,7 +319,9 @@ const generateUpdate = (
 				const input = remapFromGraphQLSingleInput(set, table);
 				if (!Object.keys(input).length) throw new GraphQLError('Unable to update with no values specified!');
 
-				let query = db.update(table).set(input);
+				const customDb = context?.db || db;
+
+				let query = customDb.update(table).set(input);
 				if (where) {
 					const filters = extractFilters(table, tableName, where);
 					query = query.where(filters) as any;
@@ -364,7 +374,9 @@ const generateDelete = (
 					table,
 				);
 
-				let query = db.delete(table);
+				const customDb = context?.db || db;
+
+				let query = customDb.delete(table);
 				if (where) {
 					const filters = extractFilters(table, tableName, where);
 					query = query.where(filters) as any;

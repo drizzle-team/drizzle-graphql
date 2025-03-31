@@ -25,7 +25,7 @@ export const remapToGraphQLCore = (
 				relationMap,
 			);
 		}
-		if (column.columnType === 'PgGeometry' || column.columnType === 'PgVector') return value;
+		if (column.columnType === 'PgGeometry' || column.columnType === 'PgVector' || column.columnType === 'PgJson' || column.columnType === 'PgJsonb') return value;
 
 		return value.map((arrVal) => remapToGraphQLCore(key, arrVal, tableName, column, relationMap));
 	}
@@ -40,7 +40,7 @@ export const remapToGraphQLCore = (
 				relationMap,
 			);
 		}
-		if (column.columnType === 'PgGeometryObject') return value;
+		if (column.columnType === 'PgGeometryObject' || column.columnType === 'PgJson' || column.columnType === 'PgJsonb') return value;
 
 		return JSON.stringify(value);
 	}
