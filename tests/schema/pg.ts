@@ -53,6 +53,7 @@ export const Posts = pgTable('posts', {
 	id: serial('id').primaryKey(),
 	content: text('content'),
 	authorId: integer('author_id'),
+	parentId: integer('parent_id'), // Self-relation for thread/reply functionality
 });
 
 export const usersRelations = relations(Users, ({ one, many }) => ({
@@ -71,7 +72,7 @@ export const customersRelations = relations(Customers, ({ one, many }) => ({
 	posts: many(Posts),
 }));
 
-export const postsRelations = relations(Posts, ({ one }) => ({
+export const postsRelations = relations(Posts, ({ one, many }) => ({
 	author: one(Users, {
 		fields: [Posts.authorId],
 		references: [Users.id],
@@ -79,5 +80,12 @@ export const postsRelations = relations(Posts, ({ one }) => ({
 	customer: one(Customers, {
 		fields: [Posts.authorId],
 		references: [Customers.userId],
+	}),
+	parent: one(Posts, {
+		fields: [Posts.parentId],
+		references: [Posts.id],
+	}),
+	replies: many(Posts, {
+		relationName: 'post_replies'
 	}),
 }));

@@ -313,7 +313,8 @@ const generateSelectFields = <TWithOrder extends boolean>(
 	const tableFields = generateTableSelectTypeFieldsCached(table, tableName);
 
 	if (
-		usedTables.has(tableName) || (typeof relationsDepthLimit === 'number' && currentDepth >= relationsDepthLimit)
+		(typeof relationsDepthLimit !== 'number' && usedTables.has(tableName))
+		|| (typeof relationsDepthLimit === 'number' && currentDepth >= relationsDepthLimit)
 		|| !relationEntries.length
 	) {
 		return {

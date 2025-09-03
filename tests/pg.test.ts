@@ -150,7 +150,8 @@ beforeEach(async () => {
 	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "posts" (
 		"id" serial PRIMARY KEY NOT NULL,
 		"content" text,
-		"author_id" integer
+		"author_id" integer,
+		"parent_id" integer
 	);`);
 
 	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "users" (
@@ -1605,7 +1606,7 @@ describe.sequential('Query tests', async () => {
 							x: 20
 							y: 20.3
 						}
-						geoTuple: [20, 20.3]		
+						geoTuple: [20, 20.3]
 					}
 				) {
 					a
@@ -4280,6 +4281,314 @@ describe.sequential('__typename with data tests', async () => {
 					},
 				],
 			},
+		});
+	});
+
+	describe('Self-Relations', () => {
+		let selfRelCtx: { gql: GraphQLClient };
+		let selfRelServer: any;
+
+		beforeAll(async () => {
+			// Build schema with relationsDepthLimit to enable self-relations
+			const { schema: gqlSchema, entities } = buildSchema(ctx.db, { relationsDepthLimit: 3 });
+			const yoga = createYoga({
+				schema: gqlSchema,
+			});
+			selfRelServer = createServer(yoga);
+
+			const selfRelPort = 4003;
+			selfRelServer.listen(selfRelPort);
+
+			const gql = new GraphQLClient(`http://localhost:${selfRelPort}/graphql`);
+			selfRelCtx = { gql };
+		});
+
+		afterAll(async () => {
+			selfRelServer?.close();
+		});
+
+		beforeEach(async () => {
+			// Add foreign key constraint for self-relation
+			await ctx.db.execute(sql`DO $$ BEGIN
+				ALTER TABLE "posts" ADD CONSTRAINT "posts_parent_id_posts_id_fk" FOREIGN KEY ("parent_id") REFERENCES "posts"("id") ON DELETE cascade ON UPDATE cascade;
+			EXCEPTION
+				WHEN duplicate_object THEN null;
+			END $$;`);
+
+			// Insert test data with parent-child relationship
+			await ctx.db.insert(schema.Posts).values([
+				{ id: 1, content: 'Parent post', authorId: 1, parentId: null },
+				{ id: 2, content: 'Reply to parent', authorId: 2, parentId: 1 },
+			]);
+		});
+
+		afterEach(async () => {
+			await ctx.db.execute(sql`DELETE FROM "posts";`);
+			await ctx.db.execute(sql`DO $$ BEGIN
+				ALTER TABLE "posts" DROP CONSTRAINT IF EXISTS "posts_parent_id_posts_id_fk";
+			EXCEPTION
+				WHEN others THEN null;
+			END $$;`);
+		});
+
+		it('Should allow querying self-relations with nested relations', async () => {
+			const res = await selfRelCtx.gql.queryGql(/* GraphQL */ `
+				query {
+					postsSelectSingle(where: { id: { eq: 2 } }) {
+						id
+						content
+						author {
+							id
+							name
+							email
+						}
+						parent {
+							id
+							content
+							author {
+								id
+								name
+								email
+							}
+						}
+					}
+				}
+			`);
+
+			expect(res).toStrictEqual({
+				data: {
+					postsSelectSingle: {
+						id: 2,
+						content: 'Reply to parent',
+						author: {
+							id: 2,
+							name: 'SecondUser',
+							email: 'userTwo@notmail.com',
+						},
+						parent: {
+							id: 1,
+							content: 'Parent post',
+							author: {
+								id: 1,
+								name: 'FirstUser',
+								email: 'userOne@notmail.com',
+							},
+						},
+					},
+				},
+			});
+		});
+	});
+
+	describe('Self-Relations Behavior', () => {
+		describe('With undefined relationsDepthLimit (default)', () => {
+			// Uses the default ctx which has no relationsDepthLimit set
+			beforeEach(async () => {
+				// Add foreign key constraint for self-relation
+				await ctx.db.execute(sql`DO $$ BEGIN
+					ALTER TABLE "posts" ADD CONSTRAINT "posts_parent_id_posts_id_fk" FOREIGN KEY ("parent_id") REFERENCES "posts"("id") ON DELETE cascade ON UPDATE cascade;
+				EXCEPTION
+					WHEN duplicate_object THEN null;
+				END $$;`);
+
+				// Insert test data with parent-child relationship
+				await ctx.db.insert(schema.Posts).values([
+					{ id: 1, content: 'Parent post', authorId: 1, parentId: null },
+					{ id: 2, content: 'Reply to parent', authorId: 2, parentId: 1 },
+				]);
+			});
+
+			afterEach(async () => {
+				await ctx.db.execute(sql`DELETE FROM "posts";`);
+				await ctx.db.execute(sql`DO $$ BEGIN
+					ALTER TABLE "posts" DROP CONSTRAINT IF EXISTS "posts_parent_id_posts_id_fk";
+				EXCEPTION
+					WHEN others THEN null;
+				END $$;`);
+			});
+
+			it('Should block self-relations when relationsDepthLimit is undefined', async () => {
+				// Query that would work if self-relations were allowed
+				const res = await ctx.gql.queryGql(/* GraphQL */ `
+					query {
+						postsSelectSingle(where: { id: { eq: 2 } }) {
+							id
+							content
+							author {
+								id
+								name
+								email
+							}
+						}
+					}
+				`);
+
+				// Should work for non-self relations (author)
+				expect(res.data.postsSelectSingle.author).toBeDefined();
+				expect(res.data.postsSelectSingle.author.id).toBe(2);
+				expect(res.data.postsSelectSingle.author.name).toBe('SecondUser');
+
+				// But parent field should not be available in the schema due to usedTables check
+				// Let's verify the schema doesn't include parent relation
+				const schemaRes = await ctx.gql.queryGql(/* GraphQL */ `
+					query {
+						__type(name: "PostsSelectItem") {
+							fields {
+								name
+								type {
+									name
+								}
+							}
+						}
+					}
+				`);
+
+				const fieldNames = schemaRes.data.__type.fields.map((field: any) => field.name);
+				expect(fieldNames).toContain('author'); // Should have author relation
+				expect(fieldNames).not.toContain('parent'); // Should NOT have parent relation due to usedTables check
+				expect(fieldNames).not.toContain('replies'); // Should NOT have replies relation due to usedTables check
+			});
+		});
+
+		describe('With defined relationsDepthLimit', () => {
+			let selfRelCtx: { gql: GraphQLClient };
+			let selfRelServer: any;
+
+			beforeAll(async () => {
+				// Build schema with relationsDepthLimit to enable self-relations
+				const { schema: gqlSchema, entities } = buildSchema(ctx.db, { relationsDepthLimit: 3 });
+				const yoga = createYoga({
+					schema: gqlSchema,
+				});
+				selfRelServer = createServer(yoga);
+
+				const selfRelPort = await getPort({ port: 4003 });
+				selfRelServer.listen(selfRelPort);
+
+				const gql = new GraphQLClient(`http://localhost:${selfRelPort}/graphql`);
+				selfRelCtx = { gql };
+			});
+
+			afterAll(async () => {
+				selfRelServer?.close();
+			});
+
+			beforeEach(async () => {
+				// Add foreign key constraint for self-relation
+				await ctx.db.execute(sql`DO $$ BEGIN
+					ALTER TABLE "posts" ADD CONSTRAINT "posts_parent_id_posts_id_fk" FOREIGN KEY ("parent_id") REFERENCES "posts"("id") ON DELETE cascade ON UPDATE cascade;
+				EXCEPTION
+					WHEN duplicate_object THEN null;
+				END $$;`);
+
+				// Insert test data with parent-child relationship
+				await ctx.db.insert(schema.Posts).values([
+					{ id: 1, content: 'Parent post', authorId: 1, parentId: null },
+					{ id: 2, content: 'Reply to parent', authorId: 2, parentId: 1 },
+				]);
+			});
+
+			afterEach(async () => {
+				await ctx.db.execute(sql`DELETE FROM "posts";`);
+				await ctx.db.execute(sql`DO $$ BEGIN
+					ALTER TABLE "posts" DROP CONSTRAINT IF EXISTS "posts_parent_id_posts_id_fk";
+				EXCEPTION
+					WHEN others THEN null;
+				END $$;`);
+			});
+
+			it('Should allow self-relations when relationsDepthLimit is defined', async () => {
+				// First, verify the schema includes self-relations when depth limit is set
+				const schemaRes = await selfRelCtx.gql.queryGql(/* GraphQL */ `
+					query {
+						__type(name: "PostsSelectItem") {
+							fields {
+								name
+								type {
+									name
+								}
+							}
+						}
+					}
+				`);
+
+				const fieldNames = schemaRes.data.__type.fields.map((field: any) => field.name);
+				expect(fieldNames).toContain('author'); // Should have author relation
+				expect(fieldNames).toContain('parent'); // Should have parent relation when depth limit is set
+				expect(fieldNames).toContain('replies'); // Should have replies relation when depth limit is set
+			});
+
+			it('Should allow querying self-relations with nested relations (post.parent.author)', async () => {
+				const res = await selfRelCtx.gql.queryGql(/* GraphQL */ `
+					query {
+						postsSelectSingle(where: { id: { eq: 2 } }) {
+							id
+							content
+							author {
+								id
+								name
+								email
+							}
+							parent {
+								id
+								content
+								author {
+									id
+									name
+									email
+								}
+							}
+						}
+					}
+				`);
+
+				expect(res).toStrictEqual({
+					data: {
+						postsSelectSingle: {
+							id: 2,
+							content: 'Reply to parent',
+							author: {
+								id: 2,
+								name: 'SecondUser',
+								email: 'userTwo@notmail.com',
+							},
+							parent: {
+								id: 1,
+								content: 'Parent post',
+								author: {
+									id: 1,
+									name: 'FirstUser',
+									email: 'userOne@notmail.com',
+								},
+							},
+						},
+					},
+				});
+			});
+
+			it('Should respect depth limit even with self-relations', async () => {
+				// Try to query beyond the depth limit (depth=3: post->parent->author->posts would be depth 4)
+				const res = await selfRelCtx.gql.queryGql(/* GraphQL */ `
+					query {
+						postsSelectSingle(where: { id: { eq: 2 } }) {
+							id
+							parent {
+								id
+								author {
+									id
+									posts {
+										id
+									}
+								}
+							}
+						}
+					}
+				`);
+
+				// Should work up to depth 3 but posts under author should be empty due to depth limit
+				expect(res.data.postsSelectSingle.parent.author.id).toBe(1);
+				expect(res.data.postsSelectSingle.parent.author.posts).toEqual([]); // Depth limit prevents further traversal
+			});
 		});
 	});
 });
