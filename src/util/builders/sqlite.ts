@@ -15,6 +15,7 @@ import {
 	extractRelationsParams,
 	extractSelectedColumnsFromTree,
 	extractSelectedColumnsFromTreeSQLFormat,
+	executeCountQuery,
 	generateTableTypes,
 } from '@/util/builders/common';
 import { capitalize, uncapitalize } from '@/util/case-ops';
@@ -167,6 +168,41 @@ const generateSelectSingle = (
 				if (!result) return undefined;
 
 				return remapToGraphQLSingleOutput(result, tableName, table, relationMap);
+			} catch (e) {
+				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
+					throw new GraphQLError((<any> e).message);
+				}
+
+				throw e;
+			}
+		},
+		args: queryArgs,
+	};
+};
+
+const generateSelectCount = (
+	db: BaseSQLiteDatabase<any, any, any, any>,
+	tableName: string,
+	tables: Record<string, Table>,
+	filterArgs: GraphQLInputObjectType,
+): CreatedResolver => {
+	const queryName = `${uncapitalize(tableName)}Count`;
+	const table = tables[tableName]!;
+
+	const queryArgs = {
+		where: {
+			type: filterArgs,
+		},
+	} as GraphQLFieldConfigArgumentMap;
+
+	return {
+		name: queryName,
+		resolver: async (source, args: { where?: Filters<Table> }, context, info) => {
+			try {
+				const { where } = args;
+
+				const whereClause = where ? extractFilters(table, tableName, where) : undefined;
+				return await executeCountQuery(db, table, whereClause);
 			} catch (e) {
 				if (typeof e === 'object' && typeof (<any> e).message === 'string') {
 					throw new GraphQLError((<any> e).message);
@@ -474,6 +510,12 @@ export const generateSchemaData = <
 			tableOrder,
 			tableFilters,
 		);
+		const selectCountGenerated = generateSelectCount(
+			db,
+			tableName,
+			tables,
+			tableFilters,
+		);
 		const insertArrGenerated = generateInsertArray(db, tableName, schema[tableName] as SQLiteTable, insertInput);
 		const insertSingleGenerated = generateInsertSingle(db, tableName, schema[tableName] as SQLiteTable, insertInput);
 		const updateGenerated = generateUpdate(
@@ -494,6 +536,11 @@ export const generateSchemaData = <
 			type: selectSingleOutput,
 			args: selectSingleGenerated.args,
 			resolve: selectSingleGenerated.resolver,
+		};
+		queries[selectCountGenerated.name] = {
+			type: GraphQLInt,
+			args: selectCountGenerated.args,
+			resolve: selectCountGenerated.resolver,
 		};
 		mutations[insertArrGenerated.name] = {
 			type: arrTableItemOutput,

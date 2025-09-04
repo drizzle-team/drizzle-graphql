@@ -1605,7 +1605,7 @@ describe.sequential('Query tests', async () => {
 							x: 20
 							y: 20.3
 						}
-						geoTuple: [20, 20.3]		
+						geoTuple: [20, 20.3]
 					}
 				) {
 					a
@@ -4279,6 +4279,47 @@ describe.sequential('__typename with data tests', async () => {
 						__typename: 'CustomersItem',
 					},
 				],
+			},
+		});
+	});
+
+	it('Count queries', async () => {
+		// Test basic count
+		const countRes = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersCount
+			}
+		`);
+
+		expect(countRes).toStrictEqual({
+			data: {
+				usersCount: 3,
+			},
+		});
+
+		// Test count with filters
+		const filteredCountRes = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				usersCount(where: { role: { eq: "admin" } })
+			}
+		`);
+
+		expect(filteredCountRes).toStrictEqual({
+			data: {
+				usersCount: 1,
+			},
+		});
+
+		// Test posts count
+		const postsCountRes = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				postsCount
+			}
+		`);
+
+		expect(postsCountRes).toStrictEqual({
+			data: {
+				postsCount: 6,
 			},
 		});
 	});

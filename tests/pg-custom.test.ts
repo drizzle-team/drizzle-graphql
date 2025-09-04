@@ -2051,4 +2051,45 @@ describe.sequential('Arguments tests', async () => {
 			},
 		});
 	});
+
+	it('Count queries', async () => {
+		// Test basic count
+		const countRes = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				customUsersCount
+			}
+		`);
+
+		expect(countRes).toStrictEqual({
+			data: {
+				customUsersCount: 2,
+			},
+		});
+
+		// Test count with filters
+		const filteredCountRes = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				customUsersCount(where: { role: { eq: "admin" } })
+			}
+		`);
+
+		expect(filteredCountRes).toStrictEqual({
+			data: {
+				customUsersCount: 1,
+			},
+		});
+
+		// Test posts count
+		const postsCountRes = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				customPostsCount
+			}
+		`);
+
+		expect(postsCountRes).toStrictEqual({
+			data: {
+				customPostsCount: 6,
+			},
+		});
+	});
 });

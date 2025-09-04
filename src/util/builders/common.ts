@@ -1,6 +1,7 @@
 import {
 	and,
 	asc,
+	count,
 	desc,
 	eq,
 	getTableColumns,
@@ -692,4 +693,29 @@ export const extractRelationsParams = (
 	if (!info) return undefined;
 
 	return extractRelationsParamsInner(relationMap, tables, tableName, typeName, info, true);
+};
+
+export const executeCountQuery = async <TDb extends { select: Function; $count?: Function }>(
+	db: TDb,
+	table: Table,
+	where?: SQL,
+): Promise<number> => {
+	// Try to use the modern db.$count utility if available
+	if (db.$count && typeof db.$count === 'function') {
+		try {
+			const result = where
+				? await db.$count(table, where)
+				: await db.$count(table);
+			return Number(result) || 0;
+		} catch (e) {
+			// Fall back to manual count if $count fails
+		}
+	}
+
+	// Fall back to manual count query
+	const query = db.select({ count: count() }).from(table);
+	const result = await (where ? query.where(where) : query);
+	const value = result[0]?.count || 0;
+
+	return Number(value);
 };
