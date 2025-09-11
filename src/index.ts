@@ -38,13 +38,24 @@ export const buildSchema = <TDbClient extends AnyDrizzleDB<any>>(
 		}
 	}
 
+	const suffixes = {
+		list: config?.suffixes?.list ?? '',
+		single: config?.suffixes?.single ?? 'Single',
+	};
+
+	if (suffixes.list === suffixes.single) {
+		throw new Error(
+			'Drizzle-GraphQL Error: List and single query suffixes cannot be the same. This would create conflicting GraphQL field names.',
+		);
+	}
+
 	let generatorOutput;
 	if (is(db, MySqlDatabase)) {
-		generatorOutput = generateMySQL(db, schema, config?.relationsDepthLimit);
+		generatorOutput = generateMySQL(db, schema, config?.relationsDepthLimit, suffixes);
 	} else if (is(db, PgDatabase)) {
-		generatorOutput = generatePG(db, schema, config?.relationsDepthLimit);
+		generatorOutput = generatePG(db, schema, config?.relationsDepthLimit, suffixes);
 	} else if (is(db, BaseSQLiteDatabase)) {
-		generatorOutput = generateSQLite(db, schema, config?.relationsDepthLimit);
+		generatorOutput = generateSQLite(db, schema, config?.relationsDepthLimit, suffixes);
 	} else throw new Error('Drizzle-GraphQL Error: Unknown database instance type');
 
 	const { queries, mutations, inputs, types } = generatorOutput;

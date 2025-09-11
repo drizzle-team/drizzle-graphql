@@ -414,4 +414,15 @@ export type BuildSchemaConfig = {
 	 * Value is treated as if set to `undefined` by default.
 	 */
 	relationsDepthLimit?: number;
+	/**
+	 * Customizes query name suffixes for generated GraphQL operations.
+	 *
+	 * @default { list: '', single: 'Single' }
+	 */
+	suffixes?: {
+		/** Suffix for list queries (e.g., 'users' -> 'users' + suffix) */
+		list?: string;
+		/** Suffix for single queries (e.g., 'users' -> 'users' + suffix) */
+		single?: string;
+	};
 };
