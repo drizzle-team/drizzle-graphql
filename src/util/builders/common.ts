@@ -520,7 +520,7 @@ export const extractFiltersColumn = <TColumn extends Column>(
 
 	const variants = [] as SQL[];
 	for (const [operatorName, operatorValue] of entries) {
-		if (operatorValue === null || operatorValue === false) continue;
+		if (operatorValue === null) continue;
 
 		let operator: ((...args: any[]) => SQL) | undefined;
 		switch (operatorName as keyof FilterColumnOperatorsCore<TColumn>) {

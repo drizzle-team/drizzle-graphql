@@ -1688,6 +1688,22 @@ describe.sequential('Arguments tests', async () => {
 		});
 	});
 
+	it('Filters - boolean `eq: false` is applied, not ignored', async () => {
+		const res = await ctx.gql.queryGql(/* GraphQL */ `
+			{
+				users(where: { isConfirmed: { eq: false } }) {
+					id
+				}
+			}
+		`);
+
+		expect(res).toStrictEqual({
+			data: {
+				users: [],
+			},
+		});
+	});
+
 	it('Update filters', async () => {
 		const res = await ctx.gql.queryGql(/* GraphQL */ `
 			mutation {
