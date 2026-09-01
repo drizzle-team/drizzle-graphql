@@ -20,7 +20,7 @@ import type { PgArray } from 'drizzle-orm/pg-core';
 import { capitalize } from '../case-ops';
 import type { ConvertedColumn } from './types';
 
-const allowedNameChars = /^[a-zA-Z0-9_]+$/;
+const allowedNameChars = /^[a-zA-Z_][a-zA-Z0-9_]+$/;
 
 const enumMap = new WeakMap<Object, GraphQLEnumType>();
 const generateEnumCached = (column: Column, columnName: string, tableName: string): GraphQLEnumType => {
